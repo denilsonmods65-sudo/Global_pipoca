@@ -13,10 +13,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v1
@@ -29,58 +35,20 @@ jobs:
       - name: Build web project
         run: bun run build
 
-      - name: Apply Custom App Icon
-        run: |
-          ICON_FILE="file_000000004660820ebf6dd6dfc334fcee.png"
-          if [ -f "$ICON_FILE" ]; then
-            echo "A aplicar o ícone personalizado do Global Pipoca..."
-            if [ -d "android-tv-export/app/src/main/res" ]; then
-              RES_DIR="android-tv-export/app/src/main/res"
-            elif [ -d "android/app/src/main/res" ]; then
-              RES_DIR="android/app/src/main/res"
-            else
-              RES_DIR=""
-            fi
-            
-            if [ -n "$RES_DIR" ]; then
-              for folder in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-                mkdir -p "$RES_DIR/$folder"
-                cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher.png"
-                cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher_round.png"
-              done
-              echo "Ícone aplicado com sucesso!"
-            fi
-          fi
-
-      - name: Set up Java JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Gradle 8.5
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.5'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
-
-      - name: Fix Gradle & Build APK
+      - name: Configure Android project
         run: |
           if [ -d "android-tv-export" ]; then
-            CD_DIR="android-tv-export"
+            cd android-tv-export
           elif [ -d "android" ]; then
-            CD_DIR="android"
+            cd android
           else
-            CD_DIR=$(dirname $(find . -name "build.gradle*" | head -n 1))
+            echo "Pasta Android não encontrada."
+            exit 1
           fi
-          cd "$CD_DIR"
-          
-          # Injetar repositórios de plugins no topo do build.gradle.kts principal
-          cat << 'EOF' > settings.gradle.kts
+
+          echo "ANDROID_DIR=$PWD" >> "$GITHUB_ENV"
+
+          cat > settings.gradle.kts <<'EOF'
           pluginManagement {
               repositories {
                   google()
@@ -88,37 +56,90 @@ jobs:
                   gradlePluginPortal()
               }
           }
+
           dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositoriesMode.set(
+                  RepositoriesMode.FAIL_ON_PROJECT_REPOS
+              )
               repositories {
                   google()
                   mavenCentral()
               }
           }
+
           rootProject.name = "GlobalPipoca"
-          include(":app")
           EOF
 
-          # Garantir a versão do plugin Android no build.gradle.kts principal
-          cat << 'EOF' > build.gradle.kts
+          cat > build.gradle.kts <<'EOF'
           plugins {
-              id("com.android.application") version "8.1.1" apply false
-              id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+              id("com.android.application") version "8.6.1"
+              id("org.jetbrains.kotlin.android") version "1.9.24"
+          }
+
+          android {
+              namespace = "com.noctraplay.iptv"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.noctraplay.iptv"
+                  minSdk = 23
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "1.0.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+                  debug {
+                      isDebuggable = true
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+
+              buildFeatures {
+                  viewBinding = true
+              }
+          }
+
+          dependencies {
+              implementation("androidx.leanback:leanback:1.0.0")
+              implementation("androidx.leanback:leanback-preference:1.0.0")
+              implementation("androidx.core:core-ktx:1.15.0")
+              implementation("androidx.appcompat:appcompat:1.7.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+              implementation("androidx.media3:media3-exoplayer:1.5.1")
+              implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
+              implementation("androidx.media3:media3-exoplayer-dash:1.5.1")
+              implementation("androidx.media3:media3-ui:1.5.1")
+              implementation("androidx.media3:media3-session:1.5.1")
+              implementation("com.squareup.okhttp3:okhttp:4.12.0")
+              implementation("com.squareup.retrofit2:retrofit:2.11.0")
+              implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
           }
           EOF
 
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper --gradle-version 8.5
-          fi
-          
+          gradle wrapper --gradle-version 8.7
+
+      - name: Build APK
+        run: |
+          cd "$ANDROID_DIR"
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew --no-daemon assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Global-Pipoca-APK
-          path: |
-            **/build/outputs/apk/debug/*.apk
-            **/build/outputs/apk/release/*.apk
-            
+          path: android-tv-export/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
