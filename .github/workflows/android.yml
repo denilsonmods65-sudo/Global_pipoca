@@ -79,7 +79,7 @@ jobs:
           fi
           cd "$CD_DIR"
           
-          # Criar settings.gradle.kts com repositórios de plugins corretos para o Gradle 8.x
+          # Injetar repositórios de plugins no topo do build.gradle.kts principal
           cat << 'EOF' > settings.gradle.kts
           pluginManagement {
               repositories {
@@ -89,7 +89,7 @@ jobs:
               }
           }
           dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
               repositories {
                   google()
                   mavenCentral()
@@ -99,11 +99,13 @@ jobs:
           include(":app")
           EOF
 
-          # Garantir versão no plugin do android application se existir
-          if [ -f "app/build.gradle.kts" ]; then
-            sed -i 's/id("com.android.application")/id("com.android.application") version "8.1.1"/g' app/build.gradle.kts || true
-            sed -i 's/id "com.android.application"/id "com.android.application" version "8.1.1"/g' app/build.gradle.kts || true
-          fi
+          # Garantir a versão do plugin Android no build.gradle.kts principal
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.1.1" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+          }
+          EOF
 
           if [ ! -f "gradlew" ]; then
             gradle wrapper --gradle-version 8.5
