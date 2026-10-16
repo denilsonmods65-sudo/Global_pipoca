@@ -48,7 +48,7 @@ jobs:
                 cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher.png"
                 cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher_round.png"
               done
-              echo "Ícone aplicado com sucesso em todas as resoluções!"
+              echo "Ícone aplicado com sucesso!"
             fi
           fi
 
@@ -68,19 +68,44 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
-      - name: Export & Build APK
+      - name: Fix Gradle & Build APK
         run: |
           if [ -d "android-tv-export" ]; then
-            cd android-tv-export
+            CD_DIR="android-tv-export"
           elif [ -d "android" ]; then
-            cd android
+            CD_DIR="android"
           else
-            CD_DIR=$(dirname $(find . -name "build.gradle" | head -n 1))
-            cd "$CD_DIR"
+            CD_DIR=$(dirname $(find . -name "build.gradle*" | head -n 1))
           fi
+          cd "$CD_DIR"
           
+          # Criar settings.gradle.kts com repositórios de plugins corretos para o Gradle 8.x
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "GlobalPipoca"
+          include(":app")
+          EOF
+
+          # Garantir versão no plugin do android application se existir
+          if [ -f "app/build.gradle.kts" ]; then
+            sed -i 's/id("com.android.application")/id("com.android.application") version "8.1.1"/g' app/build.gradle.kts || true
+            sed -i 's/id "com.android.application"/id "com.android.application" version "8.1.1"/g' app/build.gradle.kts || true
+          fi
+
           if [ ! -f "gradlew" ]; then
-            echo "A criar wrapper para Gradle 8.5..."
             gradle wrapper --gradle-version 8.5
           fi
           
