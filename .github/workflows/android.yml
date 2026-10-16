@@ -33,7 +33,7 @@ jobs:
         run: |
           ICON_FILE="file_000000004660820ebf6dd6dfc334fcee.png"
           if [ -f "$ICON_FILE" ]; then
-            echo "A aplicar o ícone personalizado..."
+            echo "Aplicando ícone personalizado..."
             if [ -d "android-tv-export/app/src/main/res" ]; then
               RES_DIR="android-tv-export/app/src/main/res"
             elif [ -d "android/app/src/main/res" ]; then
@@ -60,55 +60,22 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Build APK Definitivo
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build APK
         run: |
           if [ -d "android-tv-export" ]; then
-            CD_DIR="android-tv-export"
+            cd android-tv-export
           elif [ -d "android" ]; then
-            CD_DIR="android"
-          else
-            CD_DIR=$(dirname $(find . -name "build.gradle*" | head -n 1))
-          fi
-          cd "$CD_DIR"
-
-          # Configurar settings.gradle.kts dinamicamente com base na existência da pasta app
-          if [ -d "app" ]; then
-            cat << 'EOF' > settings.gradle.kts
-            pluginManagement {
-                repositories { google(); mavenCentral(); gradlePluginPortal() }
-            }
-            dependencyResolutionManagement {
-                repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-                repositories { google(); mavenCentral() }
-            }
-            rootProject.name = "GlobalPipoca"
-            include(":app")
-            EOF
-          else
-            cat << 'EOF' > settings.gradle.kts
-            pluginManagement {
-                repositories { google(); mavenCentral(); gradlePluginPortal() }
-            }
-            dependencyResolutionManagement {
-                repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-                repositories { google(); mavenCentral() }
-            }
-            rootProject.name = "GlobalPipoca"
-            EOF
-          fi
-
-          # Garantir buildscript no build.gradle se necessário
-          if [ -f "build.gradle" ] && ! grep -q "buildscript" "build.gradle"; then
-            sed -i '1i buildscript { repositories { google(); mavenCentral() } dependencies { classpath("com.android.tools.build:gradle:8.1.1") } }\nallprojects { repositories { google(); mavenCentral() } }' build.gradle
+            cd android
           fi
 
           if [ -f "gradlew" ]; then
             chmod +x gradlew
             ./gradlew assembleDebug
           else
-            gradle wrapper --gradle-version 8.5
-            chmod +x gradlew
-            ./gradlew assembleDebug
+            gradle assembleDebug
           fi
 
       - name: Upload APK Artifact
