@@ -1,0 +1,6 @@
+{
+  "name": "NOCTRA PLAY — IPTV Android TV",
+  "description": "Aplicativo IPTV premium para Android TV e TV Box com controle remoto, reprodução cinematográfica e catálogo completo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
