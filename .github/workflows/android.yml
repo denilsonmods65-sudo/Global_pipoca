@@ -1,73 +1,91 @@
-
 name: Build Android APK
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'android-tv-export/**'
-      - '.github/workflows/android.yml'
+    branches: [ "main" ]
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          distribution: temurin
-          java-version: '17'
+          node-version: 20
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
-      - name: Locate Android project
-        id: project
-        shell: bash
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build web project
+        run: bun run build
+
+      - name: Apply Custom App Icon
         run: |
-          if [ -f "android-tv-export/build.gradle.kts" ]; then
-            echo "dir=android-tv-export" >> "$GITHUB_OUTPUT"
-          elif [ -f "android/build.gradle.kts" ]; then
-            echo "dir=android" >> "$GITHUB_OUTPUT"
-          else
-            echo "Projeto Android não encontrado."
-            exit 1
+          ICON_FILE="file_000000004660820ebf6dd6dfc334fcee.png"
+          if [ -f "$ICON_FILE" ]; then
+            echo "Aplicando ícone personalizado do Global Pipoca..."
+            if [ -d "android-tv-export/app/src/main/res" ]; then
+              RES_DIR="android-tv-export/app/src/main/res"
+            elif [ -d "android/app/src/main/res" ]; then
+              RES_DIR="android/app/src/main/res"
+            else
+              RES_DIR=""
+            fi
+            
+            if [ -n "$RES_DIR" ]; then
+              for folder in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+                mkdir -p "$RES_DIR/$folder"
+                cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher.png"
+                cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher_round.png"
+              done
+              echo "Ícone aplicado com sucesso!"
+            fi
           fi
 
-      - name: Enable AndroidX
-        working-directory: ${{ steps.project.outputs.dir }}
-        run: |
-          touch gradle.properties
-          grep -q '^android.useAndroidX=true$' gradle.properties || echo 'android.useAndroidX=true' >> gradle.properties
-          grep -q '^android.enableJetifier=true$' gradle.properties || echo 'android.enableJetifier=true' >> gradle.properties
+      - name: Set up Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
-      - name: Build debug APK
-        working-directory: ${{ steps.project.outputs.dir }}
+      - name: Accept Android SDK Licenses
         run: |
-          chmod +x gradlew 2>/dev/null || true
-          if [ -f gradlew ]; then
-            ./gradlew --no-daemon assembleDebug
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
+
+      - name: Build APK
+        run: |
+          if [ -d "android-tv-export" ]; then
+            CD_DIR="android-tv-export"
+          elif [ -d "android" ]; then
+            CD_DIR="android"
           else
-            gradle --version
+            CD_DIR=$(dirname $(find . -name "build.gradle*" | head -n 1))
+          fi
+          cd "$CD_DIR"
+
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            echo "Utilizando o Gradle para compilação..."
             gradle assembleDebug
           fi
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NOCTRA-PLAY-APK
+          name: Global-Pipoca-APK
           path: |
-            android-tv-export/build/outputs/apk/debug/*.apk
-            android/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          
+            **/build/outputs/apk/debug/*.apk
+            **/build/outputs/apk/release/*.apk
+            
