@@ -48,12 +48,8 @@ jobs:
                 cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher.png"
                 cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher_round.png"
               done
-              echo "Ícone aplicado com sucesso em todas as resoluções do Android!"
-            else
-              echo "Aviso: Diretório de recursos Android não localizado, ignorando ícone."
+              echo "Ícone aplicado com sucesso!"
             fi
-          else
-            echo "Aviso: Ficheiro de ícone não encontrado na raiz."
           fi
 
       - name: Set up Java JDK
@@ -71,16 +67,22 @@ jobs:
         run: |
           if [ -d "android-tv-export" ]; then
             cd android-tv-export
-            chmod +x gradlew
-            ./gradlew assembleDebug
           elif [ -d "android" ]; then
             cd android
-            chmod +x gradlew
-            ./gradlew assembleDebug
           else
-            echo "Pasta Android não encontrada!"
-            exit 1
+            CD_DIR=$(dirname $(find . -name "build.gradle" | head -n 1))
+            cd "$CD_DIR"
           fi
+          
+          # Se o gradlew não existir, gera-o automaticamente na hora
+          if [ ! -f "gradlew" ]; then
+            echo "Ficheiro gradlew em falta. A gerar wrapper do Gradle..."
+            sudo apt-get update && sudo apt-get install -y gradle
+            gradle wrapper
+          fi
+          
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
