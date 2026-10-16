@@ -1,145 +1,73 @@
+
 name: Build Android APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+    paths:
+      - 'android-tv-export/**'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java JDK
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build web project
-        run: bun run build
-
-      - name: Configure Android project
+      - name: Locate Android project
+        id: project
+        shell: bash
         run: |
-          if [ -d "android-tv-export" ]; then
-            cd android-tv-export
-          elif [ -d "android" ]; then
-            cd android
+          if [ -f "android-tv-export/build.gradle.kts" ]; then
+            echo "dir=android-tv-export" >> "$GITHUB_OUTPUT"
+          elif [ -f "android/build.gradle.kts" ]; then
+            echo "dir=android" >> "$GITHUB_OUTPUT"
           else
-            echo "Pasta Android não encontrada."
+            echo "Projeto Android não encontrado."
             exit 1
           fi
 
-          echo "ANDROID_DIR=$PWD" >> "$GITHUB_ENV"
-
-          cat > settings.gradle.kts <<'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-
-          dependencyResolutionManagement {
-              repositoriesMode.set(
-                  RepositoriesMode.FAIL_ON_PROJECT_REPOS
-              )
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-
-          rootProject.name = "GlobalPipoca"
-          EOF
-
-          cat > build.gradle.kts <<'EOF'
-          plugins {
-              id("com.android.application") version "8.6.1"
-              id("org.jetbrains.kotlin.android") version "1.9.24"
-          }
-
-          android {
-              namespace = "com.noctraplay.iptv"
-              compileSdk = 35
-
-              defaultConfig {
-                  applicationId = "com.noctraplay.iptv"
-                  minSdk = 23
-                  targetSdk = 35
-                  versionCode = 1
-                  versionName = "1.0.0"
-              }
-
-              buildTypes {
-                  release {
-                      isMinifyEnabled = false
-                  }
-                  debug {
-                      isDebuggable = true
-                  }
-              }
-
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-
-              kotlinOptions {
-                  jvmTarget = "17"
-              }
-
-              buildFeatures {
-                  viewBinding = true
-              }
-          }
-
-          dependencies {
-              implementation("androidx.leanback:leanback:1.0.0")
-              implementation("androidx.leanback:leanback-preference:1.0.0")
-              implementation("androidx.core:core-ktx:1.15.0")
-              implementation("androidx.appcompat:appcompat:1.7.0")
-              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-              implementation("androidx.media3:media3-exoplayer:1.5.1")
-              implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
-              implementation("androidx.media3:media3-exoplayer-dash:1.5.1")
-              implementation("androidx.media3:media3-ui:1.5.1")
-              implementation("androidx.media3:media3-session:1.5.1")
-              implementation("com.squareup.okhttp3:okhttp:4.12.0")
-              implementation("com.squareup.retrofit2:retrofit:2.11.0")
-              implementation("com.squareup.retrofit2:converter-gson:2.11.0")
-              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-          }
-          EOF
-
-          gradle wrapper --gradle-version 8.7
-
-      - name: Build APK
+      - name: Enable AndroidX
+        working-directory: ${{ steps.project.outputs.dir }}
         run: |
-          cd "$ANDROID_DIR"
-          chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+          touch gradle.properties
+          grep -q '^android.useAndroidX=true$' gradle.properties || echo 'android.useAndroidX=true' >> gradle.properties
+          grep -q '^android.enableJetifier=true$' gradle.properties || echo 'android.enableJetifier=true' >> gradle.properties
 
-      - name: Upload APK Artifact
+      - name: Build debug APK
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: |
+          chmod +x gradlew 2>/dev/null || true
+          if [ -f gradlew ]; then
+            ./gradlew --no-daemon assembleDebug
+          else
+            gradle --version
+            gradle assembleDebug
+          fi
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Global-Pipoca-APK
-          path: android-tv-export/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
+          name: NOCTRA-PLAY-APK
+          path: |
+            android-tv-export/build/outputs/apk/debug/*.apk
+            android/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          
