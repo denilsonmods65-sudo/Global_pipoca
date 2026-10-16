@@ -48,7 +48,7 @@ jobs:
                 cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher.png"
                 cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher_round.png"
               done
-              echo "Ícone aplicado com sucesso!"
+              echo "Ícone aplicado com sucesso em todas as resoluções!"
             fi
           fi
 
@@ -57,6 +57,11 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+
+      - name: Setup Gradle 8.5
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -74,11 +79,9 @@ jobs:
             cd "$CD_DIR"
           fi
           
-          # Se o gradlew não existir, gera-o automaticamente na hora
           if [ ! -f "gradlew" ]; then
-            echo "Ficheiro gradlew em falta. A gerar wrapper do Gradle..."
-            sudo apt-get update && sudo apt-get install -y gradle
-            gradle wrapper
+            echo "A criar wrapper para Gradle 8.5..."
+            gradle wrapper --gradle-version 8.5
           fi
           
           chmod +x gradlew
