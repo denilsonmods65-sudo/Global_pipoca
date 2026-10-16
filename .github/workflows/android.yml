@@ -58,16 +58,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Gradle 8.5
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.5'
-
-      - name: Accept Android SDK Licenses
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-      - name: Build APK Correctly
+      - name: Build APK Definitivo
         run: |
           if [ -d "android-tv-export" ]; then
             CD_DIR="android-tv-export"
@@ -78,22 +69,54 @@ jobs:
           fi
           cd "$CD_DIR"
 
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper --gradle-version 8.5
+          # Configurar settings.gradle.kts com repositórios corretos
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "GlobalPipoca"
+          include(":app")
+          EOF
+
+          # Reconfigurar build.gradle.kts raiz com a classe do plugin Android
+          cat << 'EOF' > build.gradle.kts
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath("com.android.tools.build:gradle:8.1.1")
+                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
+              }
+          }
+
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+          # Garantir permissão e compilar usando o wrapper
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
           fi
-          chmod +x gradlew
-
-          # Injetar pluginManagement de forma segura se não existir
-          for file in settings.gradle settings.gradle.kts; do
-            if [ -f "$file" ]; then
-              if ! grep -q "pluginManagement" "$file"; then
-                echo "A adicionar pluginManagement ao $file..."
-                sed -i '1i pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\n' "$file"
-              fi
-            fi
-          done
-
-          ./gradlew assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
