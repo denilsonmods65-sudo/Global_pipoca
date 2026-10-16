@@ -38,6 +38,8 @@ jobs:
               RES_DIR="android-tv-export/app/src/main/res"
             elif [ -d "android/app/src/main/res" ]; then
               RES_DIR="android/app/src/main/res"
+            elif [ -d "android-tv-export/src/main/res" ]; then
+              RES_DIR="android-tv-export/src/main/res"
             else
               RES_DIR=""
             fi
@@ -69,53 +71,44 @@ jobs:
           fi
           cd "$CD_DIR"
 
-          # Configurar settings.gradle.kts com repositórios corretos
-          cat << 'EOF' > settings.gradle.kts
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "GlobalPipoca"
-          include(":app")
-          EOF
+          # Configurar settings.gradle.kts dinamicamente com base na existência da pasta app
+          if [ -d "app" ]; then
+            cat << 'EOF' > settings.gradle.kts
+            pluginManagement {
+                repositories { google(); mavenCentral(); gradlePluginPortal() }
+            }
+            dependencyResolutionManagement {
+                repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+                repositories { google(); mavenCentral() }
+            }
+            rootProject.name = "GlobalPipoca"
+            include(":app")
+            EOF
+          else
+            cat << 'EOF' > settings.gradle.kts
+            pluginManagement {
+                repositories { google(); mavenCentral(); gradlePluginPortal() }
+            }
+            dependencyResolutionManagement {
+                repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+                repositories { google(); mavenCentral() }
+            }
+            rootProject.name = "GlobalPipoca"
+            EOF
+          fi
 
-          # Reconfigurar build.gradle.kts raiz com a classe do plugin Android
-          cat << 'EOF' > build.gradle.kts
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath("com.android.tools.build:gradle:8.1.1")
-                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
-              }
-          }
+          # Garantir buildscript no build.gradle se necessário
+          if [ -f "build.gradle" ] && ! grep -q "buildscript" "build.gradle"; then
+            sed -i '1i buildscript { repositories { google(); mavenCentral() } dependencies { classpath("com.android.tools.build:gradle:8.1.1") } }\nallprojects { repositories { google(); mavenCentral() } }' build.gradle
+          fi
 
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          EOF
-
-          # Garantir permissão e compilar usando o wrapper
           if [ -f "gradlew" ]; then
             chmod +x gradlew
             ./gradlew assembleDebug
           else
-            gradle assembleDebug
+            gradle wrapper --gradle-version 8.5
+            chmod +x gradlew
+            ./gradlew assembleDebug
           fi
 
       - name: Upload APK Artifact
