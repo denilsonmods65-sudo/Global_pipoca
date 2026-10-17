@@ -1,6 +1,6 @@
 package com.noctraplay.iptv
 
-// Atualização forçada para limpar cache do Gradle - NOCTRA PLAY
+// Atualização limpa para correção de compilação - NOCTRA PLAY
 import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
