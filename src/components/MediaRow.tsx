@@ -57,7 +57,7 @@ export const MediaRow: React.FC<MediaRowProps> = ({ title, badge, children }) =>
       {/* Horizontal Carousel */}
       <div
         ref={rowRef}
-        className="flex items-stretch gap-4 overflow-x-auto no-scrollbar scroll-smooth py-2 px-1 -mx-1"
+        className="flex items-stretch gap-4 overflow-x-auto no-scrollbar scroll-smooth py-3.5 px-2 -mx-2"
       >
         {children}
       </div>

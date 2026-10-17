@@ -27,7 +27,7 @@ export const Top10Row: React.FC<Top10RowProps> = ({ items, onSelectItem }) => {
       </div>
 
       {/* Horizontal Carousel with Giant Numbering */}
-      <div className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto no-scrollbar scroll-smooth py-2 px-1 -mx-1">
+      <div className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto no-scrollbar scroll-smooth py-3.5 px-2 -mx-2">
         {items.slice(0, 10).map((item, index) => {
           const rank = index + 1;
           const poster =

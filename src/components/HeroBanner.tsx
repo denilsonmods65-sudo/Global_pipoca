@@ -106,6 +106,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
           <div className="flex items-center gap-2.5">
             {/* Primary Watch Button */}
             <button
+              id="hero-play-btn"
+              data-tv-next-up="header-tab-home"
               onClick={onPlay}
               className="tv-focusable flex items-center gap-2 px-5 py-2 rounded-xl bg-[#FFD700] hover:bg-amber-400 text-black font-extrabold text-xs tracking-wide shadow-md shadow-amber-500/25 transition-all outline-none"
             >
@@ -115,6 +117,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
 
             {/* Details Button */}
             <button
+              id="hero-details-btn"
+              data-tv-next-up="header-tab-home"
               onClick={onDetails}
               className="tv-focusable flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs backdrop-blur-md border border-white/15 transition-all outline-none"
             >
@@ -125,6 +129,8 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
             {/* My List Button */}
             {onToggleFavorite && (
               <button
+                id="hero-fav-btn"
+                data-tv-next-up="header-tab-home"
                 onClick={onToggleFavorite}
                 className="tv-focusable flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 font-semibold text-xs backdrop-blur-md border border-white/15 transition-all outline-none"
               >

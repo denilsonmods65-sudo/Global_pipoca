@@ -58,7 +58,7 @@ export function useTvSpatialNavigation(options?: {
     });
   }, []);
 
-  // Spatial navigation heuristic (closest element in direction)
+  // Spatial navigation heuristic (closest element in direction, strictly row-by-row)
   const findNextFocusElement = useCallback(
     (current: HTMLElement, direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'): HTMLElement | null => {
       const candidates = getFocusableElements().filter((el) => el !== current);
@@ -68,56 +68,155 @@ export function useTvSpatialNavigation(options?: {
       const currentCenterX = currentRect.left + currentRect.width / 2;
       const currentCenterY = currentRect.top + currentRect.height / 2;
 
-      let bestCandidate: HTMLElement | null = null;
-      let minDistance = Infinity;
+      if (direction === 'DOWN') {
+        // Find all candidates below current element
+        const downCandidates = candidates.filter((target) => {
+          const targetRect = target.getBoundingClientRect();
+          const targetCenterY = targetRect.top + targetRect.height / 2;
+          return targetRect.top >= currentRect.bottom - 10 || targetCenterY > currentCenterY + 14;
+        });
 
-      for (const target of candidates) {
-        const targetRect = target.getBoundingClientRect();
-        const targetCenterX = targetRect.left + targetRect.width / 2;
-        const targetCenterY = targetRect.top + targetRect.height / 2;
+        if (downCandidates.length === 0) return null;
 
-        const deltaX = targetCenterX - currentCenterX;
-        const deltaY = targetCenterY - currentCenterY;
+        // Calculate vertical gap for each candidate
+        const withDistances = downCandidates.map((target) => {
+          const targetRect = target.getBoundingClientRect();
+          const vDist = Math.max(0, targetRect.top - currentRect.bottom);
+          return { target, targetRect, vDist };
+        });
 
-        let isValidDirection = false;
-        let primaryDistance = 0;
-        let secondaryDistance = 0;
+        // Find the closest vertical level (the immediately next row)
+        const minVDist = Math.min(...withDistances.map((c) => c.vDist));
 
-        if (direction === 'RIGHT') {
-          isValidDirection = deltaX > 8; // target is to the right
-          primaryDistance = deltaX;
-          secondaryDistance = Math.abs(deltaY);
-        } else if (direction === 'LEFT') {
-          isValidDirection = deltaX < -8; // target is to the left
-          primaryDistance = Math.abs(deltaX);
-          secondaryDistance = Math.abs(deltaY);
-        } else if (direction === 'DOWN') {
-          isValidDirection = deltaY > 8; // target is below
-          primaryDistance = deltaY;
-          secondaryDistance = Math.abs(deltaX);
-        } else if (direction === 'UP') {
-          isValidDirection = deltaY < -8; // target is above
-          primaryDistance = Math.abs(deltaY);
-          secondaryDistance = Math.abs(deltaX);
-        }
+        // Group into the immediate next row (allow 65px tolerance for minor row variance)
+        const nextRowCandidates = withDistances.filter((c) => c.vDist <= minVDist + 65);
 
-        if (isValidDirection) {
-          // Weight horizontal/vertical alignment to prefer straight movement along the same row/column
-          const score = primaryDistance + secondaryDistance * 2.2;
-          if (score < minDistance) {
-            minDistance = score;
-            bestCandidate = target;
+        // Within this closest row, pick the one with closest horizontal alignment
+        let bestTarget: HTMLElement | null = null;
+        let minHDist = Infinity;
+
+        for (const item of nextRowCandidates) {
+          const targetCenterX = item.targetRect.left + item.targetRect.width / 2;
+          const hDist = Math.abs(targetCenterX - currentCenterX);
+          if (hDist < minHDist) {
+            minHDist = hDist;
+            bestTarget = item.target;
           }
         }
+
+        return bestTarget;
       }
 
-      return bestCandidate;
+      if (direction === 'UP') {
+        // Find all candidates above current element
+        const upCandidates = candidates.filter((target) => {
+          const targetRect = target.getBoundingClientRect();
+          const targetCenterY = targetRect.top + targetRect.height / 2;
+          return targetRect.bottom <= currentRect.top + 10 || targetCenterY < currentCenterY - 14;
+        });
+
+        if (upCandidates.length === 0) return null;
+
+        // Calculate vertical gap for each candidate
+        const withDistances = upCandidates.map((target) => {
+          const targetRect = target.getBoundingClientRect();
+          const vDist = Math.max(0, currentRect.top - targetRect.bottom);
+          return { target, targetRect, vDist };
+        });
+
+        // Find the closest vertical level above
+        const minVDist = Math.min(...withDistances.map((c) => c.vDist));
+
+        // Group into the immediate row above
+        const prevRowCandidates = withDistances.filter((c) => c.vDist <= minVDist + 65);
+
+        let bestTarget: HTMLElement | null = null;
+        let minHDist = Infinity;
+
+        for (const item of prevRowCandidates) {
+          const targetCenterX = item.targetRect.left + item.targetRect.width / 2;
+          const hDist = Math.abs(targetCenterX - currentCenterX);
+          if (hDist < minHDist) {
+            minHDist = hDist;
+            bestTarget = item.target;
+          }
+        }
+
+        return bestTarget;
+      }
+
+      if (direction === 'RIGHT') {
+        // Candidates strictly to the right in the same visual row/band
+        const rightCandidates = candidates.filter((target) => {
+          const targetRect = target.getBoundingClientRect();
+          const targetCenterY = targetRect.top + targetRect.height / 2;
+          const targetCenterX = targetRect.left + targetRect.width / 2;
+          const inSameRow =
+            Math.abs(targetCenterY - currentCenterY) < 95 ||
+            !(targetRect.bottom < currentRect.top || targetRect.top > currentRect.bottom);
+          const isRight = targetRect.left >= currentRect.right - 8 || targetCenterX > currentCenterX + 8;
+          return inSameRow && isRight;
+        });
+
+        if (rightCandidates.length > 0) {
+          let bestTarget: HTMLElement | null = null;
+          let minDistance = Infinity;
+          for (const target of rightCandidates) {
+            const targetRect = target.getBoundingClientRect();
+            const dist = targetRect.left - currentRect.right;
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestTarget = target;
+            }
+          }
+          return bestTarget;
+        }
+
+        // Fallback for rightward candidate
+        return null;
+      }
+
+      if (direction === 'LEFT') {
+        // Candidates strictly to the left in the same visual row/band
+        const leftCandidates = candidates.filter((target) => {
+          const targetRect = target.getBoundingClientRect();
+          const targetCenterY = targetRect.top + targetRect.height / 2;
+          const targetCenterX = targetRect.left + targetRect.width / 2;
+          const inSameRow =
+            Math.abs(targetCenterY - currentCenterY) < 95 ||
+            !(targetRect.bottom < currentRect.top || targetRect.top > currentRect.bottom);
+          const isLeft = targetRect.right <= currentRect.left + 8 || targetCenterX < currentCenterX - 8;
+          return inSameRow && isLeft;
+        });
+
+        if (leftCandidates.length > 0) {
+          let bestTarget: HTMLElement | null = null;
+          let minDistance = Infinity;
+          for (const target of leftCandidates) {
+            const targetRect = target.getBoundingClientRect();
+            const dist = currentRect.left - targetRect.right;
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestTarget = target;
+            }
+          }
+          return bestTarget;
+        }
+
+        return null;
+      }
+
+      return null;
     },
     [getFocusableElements]
   );
 
   const focusElement = useCallback((element: HTMLElement) => {
+    if (lastFocusedRef.current && lastFocusedRef.current !== element) {
+      lastFocusedRef.current.removeAttribute('data-focused');
+    }
     lastFocusedRef.current = element;
+    element.setAttribute('data-focused', 'true');
     element.focus();
     element.scrollIntoView({
       behavior: 'smooth',
@@ -217,6 +316,18 @@ export function useTvSpatialNavigation(options?: {
         const first = elements[0];
         if (first) focusElement(first);
         return;
+      }
+
+      // Check explicit direction target attribute first
+      const explicitAttr = current.getAttribute(`data-tv-next-${direction.toLowerCase()}`);
+      if (explicitAttr) {
+        const explicitTarget =
+          document.getElementById(explicitAttr) ||
+          document.querySelector<HTMLElement>(explicitAttr);
+        if (explicitTarget) {
+          focusElement(explicitTarget);
+          return;
+        }
       }
 
       const next = findNextFocusElement(current, direction);

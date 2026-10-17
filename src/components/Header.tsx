@@ -53,6 +53,8 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Zone 1: Wordmark Brand GLOBAL PIPOCA */}
       <div className="flex items-center gap-3 shrink-0">
         <button
+          id="header-brand-btn"
+          data-tv-next-down={activeTab === 'home' ? 'hero-play-btn' : undefined}
           onClick={() => onSelectTab('home')}
           className="tv-focusable flex items-center gap-2.5 group text-left outline-none focus:scale-105 transition-transform"
         >
@@ -80,6 +82,9 @@ export const Header: React.FC<HeaderProps> = ({
           return (
             <button
               key={tab.id}
+              id={`header-tab-${tab.id}`}
+              data-tv-active-tab={isActive ? 'true' : undefined}
+              data-tv-next-down={activeTab === 'home' ? 'hero-play-btn' : undefined}
               onClick={() => onSelectTab(tab.id)}
               className={`tv-focusable px-4 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap shrink-0 outline-none ${
                 isActive
@@ -105,6 +110,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Search */}
         <button
+          id="header-search-btn"
+          data-tv-next-down={activeTab === 'home' ? 'hero-play-btn' : undefined}
           onClick={onOpenSearch}
           title="Pesquisar Catálogo (Controle Remoto)"
           className={`tv-focusable p-2 rounded-xl transition-colors outline-none ${
@@ -118,6 +125,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Virtual TV Remote Toggle */}
         <button
+          id="header-remote-btn"
+          data-tv-next-down={activeTab === 'home' ? 'hero-play-btn' : undefined}
           onClick={onToggleRemote}
           title="Controle Remoto Virtual (D-Pad)"
           className="tv-focusable flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-white/5 border border-white/10 text-amber-300 hover:bg-amber-500/20 focus:bg-[#FFD700] focus:text-black transition-colors whitespace-nowrap outline-none"
@@ -128,6 +137,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Android TV APK Guide */}
         <button
+          id="header-apk-btn"
+          data-tv-next-down={activeTab === 'home' ? 'hero-play-btn' : undefined}
           onClick={onOpenExportGuide}
           title="Exportar APK Android TV"
           className="tv-focusable hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 focus:bg-[#FFD700] focus:text-black transition-colors whitespace-nowrap outline-none"
@@ -138,6 +149,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Server & Settings / Switch Account */}
         <button
+          id="header-settings-btn"
+          data-tv-next-down={activeTab === 'home' ? 'hero-play-btn' : undefined}
           onClick={onOpenSettings}
           title="Servidor Conectado - Clique para Gerenciar"
           className="tv-focusable flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 focus:bg-[#FFD700] focus:text-black transition-colors whitespace-nowrap outline-none"
@@ -154,6 +167,8 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Direct Disconnect / Switch Server Button */}
         {onLogout && (
           <button
+            id="header-logout-btn"
+            data-tv-next-down={activeTab === 'home' ? 'hero-play-btn' : undefined}
             onClick={onLogout}
             title="Desconectar e Trocar de Servidor"
             className="tv-focusable px-2.5 py-1.5 text-[11px] font-bold rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white transition-all whitespace-nowrap outline-none"

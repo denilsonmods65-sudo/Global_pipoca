@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { IptvService } from '../services/iptvService';
 import { SyncProgress } from '../types/iptv';
 import {
@@ -43,6 +43,24 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(initialErrorMessage);
 
+  // Field refs to guarantee strict sequential D-Pad navigation
+  const serverUrlRef = useRef<HTMLInputElement>(null);
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const m3uUrlRef = useRef<HTMLInputElement>(null);
+
+  // Ensure initial focus is on "URL DO SERVIDOR" as required
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mode === 'xtream') {
+        serverUrlRef.current?.focus();
+      } else {
+        m3uUrlRef.current?.focus();
+      }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [mode]);
+
   // Validate URL format helper
   const isValidUrl = (url: string): boolean => {
     try {
@@ -54,12 +72,35 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
     }
   };
 
-  // Dedicated key handler for Backspace, Delete and Android TV KEYCODE_DEL (67)
+  // Dedicated key handler for Backspace, Delete, Android TV KEYCODE_DEL (67), and sequential ArrowUp/ArrowDown
   const handleInputKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
     currentValue: string,
     setValue: (val: string) => void
   ) => {
+    // Sequential vertical D-Pad movement
+    if (e.key === 'ArrowDown' || e.keyCode === 20) {
+      const nextId = e.currentTarget.getAttribute('data-tv-next-down');
+      if (nextId) {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = document.getElementById(nextId) || document.querySelector<HTMLElement>(nextId);
+        target?.focus();
+        return;
+      }
+    }
+
+    if (e.key === 'ArrowUp' || e.keyCode === 19) {
+      const prevId = e.currentTarget.getAttribute('data-tv-next-up');
+      if (prevId) {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = document.getElementById(prevId) || document.querySelector<HTMLElement>(prevId);
+        target?.focus();
+        return;
+      }
+    }
+
     const isDelKey =
       e.key === 'Backspace' ||
       e.key === 'Delete' ||
@@ -252,9 +293,17 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
         <div className="flex items-center gap-2 p-1 bg-black/40 rounded-xl mb-6 border border-white/5">
           <button
             type="button"
+            id="tab-xtream"
+            data-tv-next-down="url-servidor"
             onClick={() => {
               setMode('xtream');
               setErrorMessage(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown' || e.keyCode === 20) {
+                e.preventDefault();
+                serverUrlRef.current?.focus();
+              }
             }}
             className={`tv-focusable flex-1 py-2.5 text-xs font-extrabold rounded-lg transition-all outline-none ${
               mode === 'xtream'
@@ -266,9 +315,17 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
           </button>
           <button
             type="button"
+            id="tab-m3u"
+            data-tv-next-down="url-m3u"
             onClick={() => {
               setMode('m3u');
               setErrorMessage(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown' || e.keyCode === 20) {
+                e.preventDefault();
+                m3uUrlRef.current?.focus();
+              }
             }}
             className={`tv-focusable flex-1 py-2.5 text-xs font-extrabold rounded-lg transition-all outline-none ${
               mode === 'm3u'
@@ -315,19 +372,28 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
           <>
             {mode === 'xtream' ? (
               <form onSubmit={handleXtreamSubmit} className="space-y-4">
-                {/* Server URL Field */}
+                {/* 1. Primeiro campo clicável: URL DO SERVIDOR */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1.5">
+                  <label
+                    htmlFor="url-servidor"
+                    className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1.5"
+                  >
                     <Server className="w-3.5 h-3.5 text-amber-400" />
                     <span>URL DO SERVIDOR</span>
                   </label>
                   <input
+                    ref={serverUrlRef}
                     type="text"
+                    id="url-servidor"
+                    tabIndex={1}
+                    autoFocus
                     value={serverUrl}
                     onChange={(e) => setServerUrl(e.target.value)}
                     onKeyDown={(e) => handleInputKeyDown(e, serverUrl, setServerUrl)}
                     placeholder="ex: http://servidor-iptv.com:8080"
                     autoComplete="url"
+                    data-tv-next-down="usuario"
+                    data-tv-next-up="tab-xtream"
                     className="tv-focusable w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
                   />
                   <span className="text-[10px] text-zinc-500 mt-1 block">
@@ -335,61 +401,84 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
                   </span>
                 </div>
 
-                {/* Username and Password Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Username Field */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-amber-400" />
-                      <span>USUÁRIO</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      onKeyDown={(e) => handleInputKeyDown(e, username, setUsername)}
-                      placeholder="Nome de usuário"
-                      autoComplete="username"
-                      className="tv-focusable w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
-                    />
-                  </div>
+                {/* 2. Ao apertar a seta para BAIXO: Usuário */}
+                <div>
+                  <label
+                    htmlFor="usuario"
+                    className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1.5"
+                  >
+                    <User className="w-3.5 h-3.5 text-amber-400" />
+                    <span>USUÁRIO</span>
+                  </label>
+                  <input
+                    ref={usernameRef}
+                    type="text"
+                    id="usuario"
+                    tabIndex={2}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    onKeyDown={(e) => handleInputKeyDown(e, username, setUsername)}
+                    placeholder="Nome de usuário"
+                    autoComplete="username"
+                    data-tv-next-down="senha"
+                    data-tv-next-up="url-servidor"
+                    className="tv-focusable w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
+                  />
+                </div>
 
-                  {/* Password Field with Show/Hide Toggle */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>SENHA</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        onKeyDown={(e) => handleInputKeyDown(e, password, setPassword)}
-                        placeholder="Senha do servidor"
-                        autoComplete="current-password"
-                        className="tv-focusable w-full pl-4 pr-11 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="tv-focusable absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-white rounded-lg outline-none"
-                        title={showPassword ? 'Ocultar senha' : 'Ver senha'}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-4 h-4 text-amber-400" />
-                        ) : (
-                          <Eye className="w-4 h-4 text-slate-400" />
-                        )}
-                      </button>
-                    </div>
+                {/* 3. Ao apertar a seta para BAIXO novamente: Senha */}
+                <div>
+                  <label
+                    htmlFor="senha"
+                    className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1.5"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>SENHA</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={passwordRef}
+                      type={showPassword ? 'text' : 'password'}
+                      id="senha"
+                      tabIndex={3}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={(e) => handleInputKeyDown(e, password, setPassword)}
+                      placeholder="Senha do servidor"
+                      autoComplete="current-password"
+                      data-tv-next-down="btn-entrar"
+                      data-tv-next-up="usuario"
+                      className="tv-focusable w-full pl-4 pr-11 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-white rounded-lg outline-none"
+                      title={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4 text-amber-400" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                {/* Submit Button */}
+                {/* 4. Por fim: botão "ENTRAR NO GLOBAL PIPOCA" */}
                 <div className="pt-2">
                   <button
                     type="submit"
+                    id="btn-entrar"
+                    tabIndex={4}
+                    data-tv-next-up="senha"
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowUp' || e.keyCode === 19) {
+                        e.preventDefault();
+                        passwordRef.current?.focus();
+                      }
+                    }}
                     className="tv-focusable w-full py-3.5 rounded-xl bg-[#FFD700] hover:bg-amber-400 text-black font-black text-sm tracking-wide shadow-xl shadow-amber-500/25 flex items-center justify-center gap-2 transition-all outline-none active:scale-95"
                   >
                     <LogIn className="w-4 h-4" />
@@ -401,16 +490,25 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
               <form onSubmit={handleM3uSubmit} className="space-y-4">
                 {/* M3U URL Field */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1.5">
+                  <label
+                    htmlFor="url-m3u"
+                    className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1.5"
+                  >
                     <FileText className="w-3.5 h-3.5 text-amber-400" />
                     <span>URL DA PLAYLIST M3U / M3U8</span>
                   </label>
                   <input
+                    ref={m3uUrlRef}
                     type="url"
+                    id="url-m3u"
+                    tabIndex={1}
+                    autoFocus
                     value={m3uUrl}
                     onChange={(e) => setM3uUrl(e.target.value)}
                     onKeyDown={(e) => handleInputKeyDown(e, m3uUrl, setM3uUrl)}
                     placeholder="https://provedor.com/lista.m3u8"
+                    data-tv-next-down="btn-carregar-m3u"
+                    data-tv-next-up="tab-m3u"
                     className="tv-focusable w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
                   />
                   <span className="text-[10px] text-zinc-500 mt-1 block">
@@ -422,6 +520,15 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
+                    id="btn-carregar-m3u"
+                    tabIndex={2}
+                    data-tv-next-up="url-m3u"
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowUp' || e.keyCode === 19) {
+                        e.preventDefault();
+                        m3uUrlRef.current?.focus();
+                      }
+                    }}
                     className="tv-focusable w-full py-3.5 rounded-xl bg-[#FFD700] hover:bg-amber-400 text-black font-black text-sm tracking-wide shadow-xl shadow-amber-500/25 flex items-center justify-center gap-2 transition-all outline-none active:scale-95"
                   >
                     <FileText className="w-4 h-4" />
