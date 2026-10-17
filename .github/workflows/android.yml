@@ -52,12 +52,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq imagemagick
 
-      - name: Generate App Icons and TV Banner
+      - name: Inject App Icon and Android TV Banner
         run: |
-          echo "Processando ícones e banner do aplicativo Android TV..."
-          
-          # Detect icon file regardless of minor naming differences
-          ICON_FILE=$(ls file_*.png 2>/dev/null | head -n 1)
+          echo "Processando e injetando ícone original e banner do Android TV..."
           
           RES_DIR="android-tv-export/src/main/res"
           mkdir -p "$RES_DIR/drawable"
@@ -67,33 +64,82 @@ jobs:
           mkdir -p "$RES_DIR/mipmap-xxhdpi"
           mkdir -p "$RES_DIR/mipmap-xxxhdpi"
 
-          if [ -n "$ICON_FILE" ] && [ -f "$ICON_FILE" ]; then
-            echo "Gerando mipmaps a partir de: $ICON_FILE"
-            convert "$ICON_FILE" -resize 48x48 "$RES_DIR/mipmap-mdpi/ic_launcher.png"
-            cp "$RES_DIR/mipmap-mdpi/ic_launcher.png" "$RES_DIR/mipmap-mdpi/ic_launcher_round.png"
-            
-            convert "$ICON_FILE" -resize 72x72 "$RES_DIR/mipmap-hdpi/ic_launcher.png"
-            cp "$RES_DIR/mipmap-hdpi/ic_launcher.png" "$RES_DIR/mipmap-hdpi/ic_launcher_round.png"
-            
-            convert "$ICON_FILE" -resize 96x96 "$RES_DIR/mipmap-xhdpi/ic_launcher.png"
-            cp "$RES_DIR/mipmap-xhdpi/ic_launcher.png" "$RES_DIR/mipmap-xhdpi/ic_launcher_round.png"
-            
-            convert "$ICON_FILE" -resize 144x144 "$RES_DIR/mipmap-xxhdpi/ic_launcher.png"
-            cp "$RES_DIR/mipmap-xxhdpi/ic_launcher.png" "$RES_DIR/mipmap-xxhdpi/ic_launcher_round.png"
-            
-            convert "$ICON_FILE" -resize 192x192 "$RES_DIR/mipmap-xxxhdpi/ic_launcher.png"
-            cp "$RES_DIR/mipmap-xxxhdpi/ic_launcher.png" "$RES_DIR/mipmap-xxxhdpi/ic_launcher_round.png"
-            echo "Ícones gerados com sucesso!"
+          # 1. Localizar a imagem do logo original (ic_noctra_logo.png, file_*.png ou similar)
+          LOGO_SRC=""
+          for cand in \
+            "ic_noctra_logo.png" \
+            $(find . -maxdepth 2 -name "file_*.png" 2>/dev/null) \
+            $(find . -name "*noctra_logo*.png" 2>/dev/null) \
+            $(find . -name "*logo*.png" ! -path "*/android-tv-export/src/main/res/*" 2>/dev/null) \
+            "$RES_DIR/drawable/ic_noctra_logo.png"; do
+            if [ -f "$cand" ] && [ $(wc -c < "$cand") -gt 100 ]; then
+              LOGO_SRC="$cand"
+              echo "Logo original encontrado: $LOGO_SRC ($(wc -c < "$cand") bytes)"
+              break
+            fi
+          done
+
+          # 2. Copiar automaticamente para as pastas de recursos do Android
+          if [ -n "$LOGO_SRC" ] && [ -f "$LOGO_SRC" ]; then
+            # Copiar diretamente para drawable/ic_noctra_logo.png
+            cp -f "$LOGO_SRC" "$RES_DIR/drawable/ic_noctra_logo.png"
+            echo "Copiado com sucesso para $RES_DIR/drawable/ic_noctra_logo.png"
+
+            # Gerar mipmaps (mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi)
+            if command -v convert &> /dev/null; then
+              echo "Gerando mipmaps otimizados com ImageMagick..."
+              convert "$LOGO_SRC" -resize 48x48 "$RES_DIR/mipmap-mdpi/ic_launcher.png"
+              cp -f "$RES_DIR/mipmap-mdpi/ic_launcher.png" "$RES_DIR/mipmap-mdpi/ic_launcher_round.png"
+
+              convert "$LOGO_SRC" -resize 72x72 "$RES_DIR/mipmap-hdpi/ic_launcher.png"
+              cp -f "$RES_DIR/mipmap-hdpi/ic_launcher.png" "$RES_DIR/mipmap-hdpi/ic_launcher_round.png"
+
+              convert "$LOGO_SRC" -resize 96x96 "$RES_DIR/mipmap-xhdpi/ic_launcher.png"
+              cp -f "$RES_DIR/mipmap-xhdpi/ic_launcher.png" "$RES_DIR/mipmap-xhdpi/ic_launcher_round.png"
+
+              convert "$LOGO_SRC" -resize 144x144 "$RES_DIR/mipmap-xxhdpi/ic_launcher.png"
+              cp -f "$RES_DIR/mipmap-xxhdpi/ic_launcher.png" "$RES_DIR/mipmap-xxhdpi/ic_launcher_round.png"
+
+              convert "$LOGO_SRC" -resize 192x192 "$RES_DIR/mipmap-xxxhdpi/ic_launcher.png"
+              cp -f "$RES_DIR/mipmap-xxxhdpi/ic_launcher.png" "$RES_DIR/mipmap-xxxhdpi/ic_launcher_round.png"
+            else
+              echo "ImageMagick não disponível, copiando direto para pastas mipmap..."
+              for dens in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+                cp -f "$LOGO_SRC" "$RES_DIR/mipmap-$dens/ic_launcher.png"
+                cp -f "$LOGO_SRC" "$RES_DIR/mipmap-$dens/ic_launcher_round.png"
+              done
+            fi
+            echo "Ícones de launcher gerados em todas as pastas mipmap-* com sucesso!"
           else
-            echo "Aviso: Imagem de ícone não encontrada no root."
+            echo "Aviso: Nenhuma imagem válida para o logo original foi encontrada."
           fi
 
-          # Generate TV Banner if not already present
-          BANNER_SRC="src/assets/images/noctra_tv_banner_1792121160514.jpg"
-          if [ -f "$BANNER_SRC" ] && [ ! -f "$RES_DIR/drawable/noctra_tv_banner.png" ]; then
-            convert "$BANNER_SRC" -resize 320x180^ -gravity center -extent 320x180 "$RES_DIR/drawable/noctra_tv_banner.png"
-            echo "Banner de TV gerado com sucesso!"
+          # 3. Localizar e injetar banner do Android TV (320x180 leanback padrão)
+          BANNER_SRC=""
+          for b_cand in \
+            "src/assets/images/noctra_tv_banner_1792121160514.jpg" \
+            $(find src -name "*banner*.jpg" -o -name "*banner*.png" 2>/dev/null) \
+            $(find . -name "*tv_banner*.png" ! -path "*/android-tv-export/src/main/res/*" 2>/dev/null) \
+            "$RES_DIR/drawable/noctra_tv_banner.png"; do
+            if [ -f "$b_cand" ] && [ $(wc -c < "$b_cand") -gt 100 ]; then
+              BANNER_SRC="$b_cand"
+              echo "Banner original encontrado: $BANNER_SRC"
+              break
+            fi
+          done
+
+          if [ -n "$BANNER_SRC" ]; then
+            if command -v convert &> /dev/null; then
+              convert "$BANNER_SRC" -resize 320x180^ -gravity center -extent 320x180 "$RES_DIR/drawable/noctra_tv_banner.png"
+            else
+              cp -f "$BANNER_SRC" "$RES_DIR/drawable/noctra_tv_banner.png"
+            fi
+            echo "Banner de TV injetado com sucesso em $RES_DIR/drawable/noctra_tv_banner.png"
           fi
+
+          echo "Status final dos recursos injetados:"
+          ls -lh "$RES_DIR/drawable/"
+          ls -lh "$RES_DIR"/mipmap-*/
 
       - name: Set up Java JDK 17
         uses: actions/setup-java@v4
