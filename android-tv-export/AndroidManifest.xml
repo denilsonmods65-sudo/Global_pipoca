@@ -30,7 +30,7 @@
         android:logo="@drawable/ic_noctra_logo"
         android:roundIcon="@drawable/ic_noctra_logo"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Leanback"
+        android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true">
 
