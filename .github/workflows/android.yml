@@ -42,9 +42,13 @@ jobs:
 
       - name: Package Web Assets for Android
         run: |
-          echo "Empacotando aplicação web para assets Android..."
+          echo "Empacotando aplicação web para assets Android (ambas as pastas: assets/ e assets/www/)..."
           mkdir -p android-tv-export/src/main/assets/www
           cp -r dist/* android-tv-export/src/main/assets/www/
+          cp -r dist/* android-tv-export/src/main/assets/
+          echo "Verificando assets/:"
+          ls -la android-tv-export/src/main/assets/
+          echo "Verificando assets/www/:"
           ls -la android-tv-export/src/main/assets/www/
 
       - name: Set up ImageMagick
