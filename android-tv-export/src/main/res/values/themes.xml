@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Leanback" parent="Theme.Leanback.Browse">
+    <!-- Tema principal compatível com AppCompat para Android TV / TV Box -->
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:windowBackground">#0C0D10</item>
+        <item name="android:windowBackground">@android:color/black</item>
     </style>
+
+    <!-- Compatibilidade retroativa para referências antigas a Theme.Leanback -->
+    <style name="Theme.Leanback" parent="AppTheme" />
 </resources>

@@ -52,12 +52,14 @@ android {
 }
 
 dependencies {
-    implementation("androidx.webkit:webkit:1.12.1")
+    // Android TV Leanback
     implementation("androidx.leanback:leanback:1.0.0")
     implementation("androidx.leanback:leanback-preference:1.0.0")
 
+    // AndroidX & AppCompat
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.webkit:webkit:1.8.0")
     implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
     implementation("androidx.media3:media3-exoplayer:1.5.1")

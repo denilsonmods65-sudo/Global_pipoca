@@ -24,8 +24,9 @@ import androidx.appcompat.app.AppCompatActivity
 
 /**
  * NOCTRA PLAY / GLOBAL PIPOCA - Main Android TV Activity
- * Loads the complete React 10-foot UI from local assets (index.html or www/index.html) into an optimized,
- * hardware-accelerated Android TV WebView with full D-Pad remote control integration.
+ * 100% programmatic WebView architecture designed for Android TV / TV Box stability.
+ * Bypasses XML layout inflation, configures hardware acceleration, handles TV remote D-Pad,
+ * and provides dual-path asset loading (index.html and www/index.html).
  */
 class MainActivity : AppCompatActivity() {
 
@@ -43,53 +44,7 @@ class MainActivity : AppCompatActivity() {
             // Hide system UI / status bars for immersive TV experience
             hideSystemUI()
 
-            // 1. Initialize view safely: try layout inflation first, fallback to programmatic layout
-            initializeContentView()
-
-            // 2. Setup WebView safely
-            val activeWebView = webView
-            if (activeWebView != null) {
-                setupWebView(activeWebView)
-                loadWebApplication(activeWebView)
-            } else {
-                Log.e(tag, "Falha crítica: WebView não pôde ser instanciada.")
-            }
-        } catch (e: Throwable) {
-            Log.e(tag, "Erro crítico no onCreate da MainActivity: ${e.message}", e)
-        }
-    }
-
-    /**
-     * Tenta inflar R.layout.activity_main; se falhar ou se a WebView não for encontrada,
-     * constrói a hierarquia de Views programaticamente, prevenindo crash de inflação de layout.
-     */
-    private fun initializeContentView() {
-        var inflatedSuccessfully = false
-
-        try {
-            setContentView(R.layout.activity_main)
-            val foundWebView = findViewById<WebView?>(R.id.webView)
-            if (foundWebView != null) {
-                webView = foundWebView
-                inflatedSuccessfully = true
-                Log.d(tag, "Layout R.layout.activity_main inflado com sucesso.")
-            } else {
-                Log.w(tag, "R.id.webView não encontrado no layout inflado. Recorrendo à criação programática.")
-            }
-        } catch (t: Throwable) {
-            Log.w(tag, "Aviso ao carregar R.layout.activity_main (${t.message}). Criando interface programática.")
-        }
-
-        if (!inflatedSuccessfully) {
-            createProgrammaticLayout()
-        }
-    }
-
-    /**
-     * Cria FrameLayout e WebView programaticamente sem depender de arquivos XML de layout.
-     */
-    private fun createProgrammaticLayout() {
-        try {
+            // 1. Create root layout and WebView 100% programmatically
             val rootLayout = FrameLayout(this).apply {
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -99,7 +54,7 @@ class MainActivity : AppCompatActivity() {
                 isFocusable = false
             }
 
-            val programmaticWebView = WebView(this).apply {
+            val tvWebView = WebView(this).apply {
                 id = View.generateViewId()
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -108,14 +63,21 @@ class MainActivity : AppCompatActivity() {
                 setBackgroundColor(Color.parseColor("#0C0D10"))
                 isFocusable = true
                 isFocusableInTouchMode = true
+                isClickable = true
             }
 
-            rootLayout.addView(programmaticWebView)
+            rootLayout.addView(tvWebView)
             setContentView(rootLayout)
-            webView = programmaticWebView
-            Log.i(tag, "Interface programática criada com sucesso.")
+            webView = tvWebView
+
+            // 2. Configure WebView settings for Android TV
+            setupWebView(tvWebView)
+
+            // 3. Load Web App with dual-path asset support
+            loadWebApplication(tvWebView)
+
         } catch (e: Throwable) {
-            Log.e(tag, "Falha ao criar layout programático: ${e.message}", e)
+            Log.e(tag, "Erro crítico no onCreate da MainActivity: ${e.message}", e)
         }
     }
 
@@ -130,7 +92,7 @@ class MainActivity : AppCompatActivity() {
                 // Allow media autoplay without touch/gesture for TV
                 mediaPlaybackRequiresUserGesture = false
 
-                // Mixed content allow for HTTP IPTV streams and logos
+                // Mixed content allow for HTTP IPTV streams and channel logos
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
                 // Asset loading security & compatibility
@@ -148,12 +110,10 @@ class MainActivity : AppCompatActivity() {
                 cacheMode = WebSettings.LOAD_DEFAULT
             }
 
-            // Enable hardware acceleration
+            // Enable hardware acceleration for smooth 60fps TV rendering
             targetWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
-            // Focus setup for TV remote
-            targetWebView.isFocusable = true
-            targetWebView.isFocusableInTouchMode = true
+            // Ensure focus is given to the WebView for TV remote control
             targetWebView.requestFocus()
 
             targetWebView.webViewClient = object : WebViewClient() {
@@ -183,10 +143,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Verifica com segurança se o arquivo web existe em assets antes de carregar:
-     * 1. Testa file:///android_asset/www/index.html
-     * 2. Testa file:///android_asset/index.html
-     * 3. Fallback seguro caso nenhum exista no momento
+     * Tenta carregar file:///android_asset/index.html e, em fallback, file:///android_asset/www/index.html
      */
     private fun loadWebApplication(targetWebView: WebView) {
         val targetUrl = determineWebAssetUrl()
@@ -194,26 +151,27 @@ class MainActivity : AppCompatActivity() {
         try {
             targetWebView.loadUrl(targetUrl)
         } catch (e: Throwable) {
-            Log.e(tag, "Erro ao chamar loadUrl($targetUrl): ${e.message}", e)
-            showFallbackErrorScreen(targetWebView, e.message ?: "Erro desconhecido")
+            Log.e(tag, "Erro ao carregar URL ($targetUrl): ${e.message}", e)
+            showFallbackScreen(targetWebView, e.message ?: "Erro desconhecido")
         }
     }
 
     private fun determineWebAssetUrl(): String {
-        // Verifica se www/index.html existe
-        if (assetExists("www/index.html")) {
-            Log.d(tag, "Asset encontrado em www/index.html")
-            return "file:///android_asset/www/index.html"
-        }
-
-        // Verifica se index.html existe na raiz dos assets
+        // 1. Tenta index.html diretamente na raiz dos assets
         if (assetExists("index.html")) {
-            Log.d(tag, "Asset encontrado em index.html")
+            Log.d(tag, "Asset principal encontrado em: index.html")
             return "file:///android_asset/index.html"
         }
 
-        Log.w(tag, "index.html não encontrado nem em www/ nem na raiz de assets. Usando padrão www/index.html")
-        return "file:///android_asset/www/index.html"
+        // 2. Em fallback, tenta www/index.html
+        if (assetExists("www/index.html")) {
+            Log.d(tag, "Asset principal encontrado em: www/index.html")
+            return "file:///android_asset/www/index.html"
+        }
+
+        // Caso padrão caso a lista seja virtual
+        Log.w(tag, "Nenhum index.html encontrado diretamente via AssetManager. Tentando file:///android_asset/index.html")
+        return "file:///android_asset/index.html"
     }
 
     private fun assetExists(assetPath: String): Boolean {
@@ -226,7 +184,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showFallbackErrorScreen(targetWebView: WebView, errorMessage: String) {
+    private fun showFallbackScreen(targetWebView: WebView, errorMessage: String) {
         val safeHtml = """
             <!DOCTYPE html>
             <html lang="pt-BR">
@@ -256,7 +214,6 @@ class MainActivity : AppCompatActivity() {
             <body>
                 <h1>GLOBAL PIPOCA</h1>
                 <p>Iniciando o sistema de streaming para Android TV...</p>
-                <p>Caso esta tela persista, verifique se a pasta de assets foi compilada no APK.</p>
                 <div class="badge">$errorMessage</div>
             </body>
             </html>
