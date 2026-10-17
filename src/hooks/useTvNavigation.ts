@@ -131,18 +131,53 @@ export function useTvSpatialNavigation(options?: {
     if (options?.enabled === false) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept if user is typing into a text input, unless it's Enter/Esc/Arrows
       const isInput =
         document.activeElement instanceof HTMLInputElement ||
         document.activeElement instanceof HTMLTextAreaElement;
 
-      // Back key
+      // Handle Backspace / Delete / KEYCODE_DEL inside input fields
+      if (isInput) {
+        const isDeleteKey =
+          e.key === 'Backspace' ||
+          e.key === 'Delete' ||
+          e.code === 'Backspace' ||
+          e.code === 'Delete' ||
+          e.keyCode === 8 ||
+          e.keyCode === 46 ||
+          e.keyCode === 67;
+
+        if (isDeleteKey) {
+          // If remote sends Android TV KEYCODE_DEL (67) without browser default behavior
+          if (e.keyCode === 67) {
+            const input = document.activeElement as HTMLInputElement;
+            const start = input.selectionStart ?? input.value.length;
+            const end = input.selectionEnd ?? input.value.length;
+            if (start > 0 || start !== end) {
+              e.preventDefault();
+              const delStart = start === end ? start - 1 : start;
+              const newVal = input.value.slice(0, delStart) + input.value.slice(end);
+              input.value = newVal;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.setSelectionRange(delStart, delStart);
+            }
+          }
+          // Do not treat as navigation BACK key
+          return;
+        }
+
+        // Only true TV BACK (Escape, Android Back key 4) blurs or navigates back from an input
+        if (e.key === 'Escape' || e.keyCode === 27 || (e.keyCode === 4 && e.key !== 'Backspace')) {
+          e.preventDefault();
+          (document.activeElement as HTMLElement)?.blur();
+          return;
+        }
+      }
+
+      // Back key outside inputs
       if (isKeyMatch(e, TV_KEYS.BACK)) {
         e.preventDefault();
         if (options?.onBack) {
           options.onBack();
-        } else if (isInput) {
-          (document.activeElement as HTMLElement)?.blur();
         }
         return;
       }

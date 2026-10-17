@@ -15,8 +15,9 @@ import {
   AudioLines,
   ChevronRight,
   ChevronLeft,
+  Sparkles,
 } from 'lucide-react';
-import { LiveChannel, WatchProgress } from '../types/iptv';
+import { LiveChannel, MovieItem, SeriesItem, WatchProgress } from '../types/iptv';
 import { buildProxyUrl, IptvService } from '../services/iptvService';
 
 interface PlayerViewProps {
@@ -34,6 +35,8 @@ interface PlayerViewProps {
     episodeNum?: number;
     episodeTitle?: string;
   };
+  recommendations?: (MovieItem | SeriesItem)[];
+  onSelectRecommendation?: (item: MovieItem | SeriesItem) => void;
 }
 
 export const PlayerView: React.FC<PlayerViewProps> = ({
@@ -45,10 +48,13 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   currentChannelId,
   onSwitchChannel,
   mediaMetadata,
+  recommendations = [],
+  onSelectRecommendation,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const recommendationsRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<any>(null);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -301,17 +307,19 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       data-tv-modal="true"
       onMouseMove={kickControlsTimer}
       onClick={kickControlsTimer}
-      className="fixed inset-0 z-50 bg-black flex items-center justify-center select-none overflow-hidden"
+      className="fixed inset-0 z-50 bg-[#0A0B0E] flex flex-col select-none overflow-y-auto no-scrollbar"
     >
-      {/* Video Element */}
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain"
-        playsInline
-        onTimeUpdate={() => {
-          if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
-        }}
-        onDurationChange={() => {
+      {/* Video Viewport Stage */}
+      <div className="relative w-full h-screen min-h-[100vh] flex-shrink-0 flex items-center justify-center bg-black overflow-hidden">
+        {/* Video Element */}
+        <video
+          ref={videoRef}
+          className="w-full h-full object-contain"
+          playsInline
+          onTimeUpdate={() => {
+            if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+          }}
+          onDurationChange={() => {
           if (videoRef.current) setDuration(videoRef.current.duration);
         }}
         onPlay={() => setIsPlaying(true)}
@@ -477,6 +485,19 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                 <span>Legendas</span>
               </button>
             )}
+
+            {recommendations && recommendations.length > 0 && (
+              <button
+                onClick={() => {
+                  recommendationsRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="tv-focusable flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-slate-200 text-xs font-semibold outline-none hover:bg-white/20"
+                title="Ver recomendações abaixo do player"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span className="hidden sm:inline">Você também pode gostar</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -522,6 +543,73 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
                   </div>
                   {isCurrent && <ChevronRight className="w-4 h-4 text-black shrink-0" />}
                 </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      </div>
+
+      {/* Seção abaixo do player: Você também pode gostar disso */}
+      {recommendations && recommendations.length > 0 && (
+        <div
+          ref={recommendationsRef}
+          className="w-full bg-[#0C0D12] border-t border-white/10 px-6 sm:px-8 py-8 z-20 flex-shrink-0"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#FFD700] animate-pulse" />
+              <h3 className="font-display text-base sm:text-lg font-bold text-white tracking-wide">
+                Você também pode gostar disso
+              </h3>
+            </div>
+            <span className="text-xs text-amber-400 font-medium">Recomendações Relacionadas</span>
+          </div>
+
+          <div className="flex items-stretch gap-4 sm:gap-5 overflow-x-auto no-scrollbar py-2 px-1 -mx-1">
+            {recommendations.slice(0, 12).map((item) => {
+              const poster = item.stream_icon || (item as any).cover;
+              return (
+                <div
+                  key={item.id}
+                  tabIndex={0}
+                  onClick={() => onSelectRecommendation?.(item)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectRecommendation?.(item);
+                    }
+                  }}
+                  className="tv-focusable tv-focus-target group relative w-36 sm:w-44 flex-shrink-0 cursor-pointer rounded-xl overflow-hidden bg-black/60 border border-white/10 hover:border-amber-400 focus:border-amber-400 transition-all outline-none"
+                >
+                  <div className="aspect-[2/3] w-full overflow-hidden bg-zinc-900 relative">
+                    {poster ? (
+                      <img
+                        src={poster}
+                        alt={item.name}
+                        className="w-full h-full object-cover group-hover:scale-105 group-focus:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs p-2 text-center">
+                        {item.name}
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity bg-black/40">
+                      <div className="w-9 h-9 rounded-full bg-[#FFD700] text-black flex items-center justify-center shadow-lg shadow-amber-400/30">
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <h5 className="font-bold text-xs text-white truncate group-focus:text-amber-400">
+                      {item.name}
+                    </h5>
+                    <p className="text-[10px] text-slate-400 truncate mt-1">
+                      {(item as any).genre || (item as any).category_name || 'Recomendado'}
+                    </p>
+                  </div>
+                </div>
               );
             })}
           </div>

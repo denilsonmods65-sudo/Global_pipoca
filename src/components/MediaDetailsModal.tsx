@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MovieItem, SeriesEpisode, SeriesInfo, SeriesItem, WatchProgress } from '../types/iptv';
-import { IptvService } from '../services/iptvService';
-import { Play, ArrowLeft, Star, Clock, Calendar, Check, Film, Tv, List } from 'lucide-react';
+import { IptvService, deduplicateList } from '../services/iptvService';
+import { Play, ArrowLeft, Star, Clock, Calendar, Check, Film, Tv, List, Sparkles } from 'lucide-react';
 import { MediaCard } from './MediaCard';
 
 interface MediaDetailsModalProps {
@@ -135,7 +135,7 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({
         </button>
 
         <span className="font-display font-bold text-amber-400 text-sm tracking-wide">
-          NOCTRA PLAY · DETALHES
+          GLOBAL PIPOCA · DETALHES
         </span>
       </div>
 
@@ -324,29 +324,60 @@ export const MediaDetailsModal: React.FC<MediaDetailsModalProps> = ({
           </div>
         )}
 
-        {/* Recomendações: Você Também Pode Gostar */}
-        {relatedItems.length > 0 && (
-          <div className="mt-8">
-            <h3 className="font-display text-lg sm:text-xl font-bold text-white mb-4">
-              Você Também Pode Gostar
-            </h3>
-            <div className="flex items-stretch gap-4 overflow-x-auto no-scrollbar py-2">
-              {relatedItems.slice(0, 8).map((rel) => (
-                <MediaCard
-                  key={rel.id}
-                  id={rel.id}
-                  title={rel.name}
-                  imageUrl={rel.stream_icon || (rel as any).cover}
-                  rating={rel.rating}
-                  year={(rel as any).year || (rel as any).releaseDate?.split('-')[0]}
-                  subtitle={(rel as any).genre}
-                  type={isSeries ? 'series' : 'movie'}
-                  onClick={() => onSelectRelated(rel, isSeries)}
-                />
-              ))}
+        {/* Recomendações: Você também pode gostar disso */}
+        {(() => {
+          const currentGenre = (genre || '').toLowerCase();
+          const currentCat = (item.category_name || item.category_id || '').toLowerCase();
+
+          // Filter matching genre or category and exclude current item
+          const matching = relatedItems.filter((r) => {
+            if (String(r.id) === String(item.id)) return false;
+            const rGenre = ((r as any).genre || '').toLowerCase();
+            const rCat = (r.category_name || r.category_id || '').toLowerCase();
+            return (
+              (currentGenre && rGenre && (rGenre.includes(currentGenre) || currentGenre.includes(rGenre))) ||
+              (currentCat && rCat && (rCat === currentCat || rCat.includes(currentCat)))
+            );
+          });
+
+          // Fallback to general related items if few matches
+          const fallback = relatedItems.filter((r) => String(r.id) !== String(item.id));
+          const recommendations = deduplicateList([...matching, ...fallback]).slice(0, 10);
+
+          if (recommendations.length === 0) return null;
+
+          return (
+            <div className="mt-8 pt-6 border-t border-white/5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#FFD700] animate-pulse" />
+                  <h3 className="font-display text-lg sm:text-xl font-bold text-white tracking-wide">
+                    Você também pode gostar disso
+                  </h3>
+                </div>
+                <span className="text-xs text-amber-400 font-medium">
+                  {genre ? `Gênero: ${genre}` : 'Recomendações Relacionadas'}
+                </span>
+              </div>
+
+              <div className="flex items-stretch gap-4 overflow-x-auto no-scrollbar py-2 px-1 -mx-1">
+                {recommendations.map((rel) => (
+                  <MediaCard
+                    key={rel.id}
+                    id={rel.id}
+                    title={rel.name}
+                    imageUrl={rel.stream_icon || (rel as any).cover}
+                    rating={rel.rating}
+                    year={(rel as any).year || (rel as any).releaseDate?.split('-')[0]}
+                    subtitle={(rel as any).genre || (rel as any).category_name}
+                    type={isSeries ? 'series' : 'movie'}
+                    onClick={() => onSelectRelated(rel, isSeries)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

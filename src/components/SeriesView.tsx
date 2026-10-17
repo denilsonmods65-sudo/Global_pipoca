@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SeriesItem, IptvCategory } from '../types/iptv';
+import { deduplicateList } from '../services/iptvService';
 import { MediaCard } from './MediaCard';
 
 interface SeriesViewProps {
@@ -15,10 +16,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  const filteredSeries =
+  const baseSeries =
     selectedCategory === 'all'
       ? series
       : series.filter((s) => s.category_id === selectedCategory);
+
+  const filteredSeries = deduplicateList(baseSeries);
 
   return (
     <div className="px-8 py-6 max-w-7xl mx-auto animate-fade-in">

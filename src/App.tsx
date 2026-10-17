@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { IptvService } from './services/iptvService';
+import { IptvService, deduplicateList } from './services/iptvService';
 import {
   LiveChannel,
   MovieItem,
@@ -30,7 +30,7 @@ import { SportsScheduleView } from './components/SportsScheduleView';
 import { KidsAnimeView } from './components/KidsAnimeView';
 import { TvSearchView } from './components/TvSearchView';
 import { useTvSpatialNavigation } from './hooks/useTvNavigation';
-import { Tv, Popcorn, AlertCircle } from 'lucide-react';
+import { Tv, Popcorn, AlertCircle, Trophy, Radio, Calendar, Play, ChevronRight } from 'lucide-react';
 
 export default function App() {
   const iptvService = IptvService.getInstance();
@@ -72,11 +72,11 @@ export default function App() {
     };
   } | null>(null);
 
-  // Load actual catalog from IptvService into React state
+  // Load actual catalog from IptvService into React state with strict deduplication
   const loadDataFromService = useCallback(() => {
-    setChannels([...iptvService.liveChannels]);
-    setMovies([...iptvService.movies]);
-    setSeries([...iptvService.series]);
+    setChannels(deduplicateList(iptvService.liveChannels));
+    setMovies(deduplicateList(iptvService.movies));
+    setSeries(deduplicateList(iptvService.series));
     setWatchHistory(iptvService.getWatchHistory());
   }, [iptvService]);
 
@@ -275,8 +275,8 @@ export default function App() {
   const defaultHero = movies[0] || series[0] || null;
   const currentHero = spotlightItem || defaultHero;
 
-  // Real Top 10 items from server catalog sorted by rating
-  const top10Items = [...movies, ...series]
+  // Real Top 10 items strictly deduplicated by ID and normalized title
+  const top10Items = deduplicateList([...movies, ...series])
     .filter((item) => item && item.name)
     .sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0))
     .slice(0, 10);
@@ -372,18 +372,6 @@ export default function App() {
               />
             )}
 
-            {/* Mosaico de Destaques - Visual Reference Composition */}
-            <HighlightsMosaic
-              featuredMovie={movies[0] || null}
-              featuredSeries={series[0] || null}
-              featuredChannel={channels[0] || null}
-              secondaryMovie={movies[1] || null}
-              onSelectMovie={handleOpenMovie}
-              onSelectSeries={handleOpenSeries}
-              onSelectChannel={handlePlayChannel}
-              onFocusItem={(item) => setSpotlightItem(item)}
-            />
-
             {/* Row 1: Continuar Assistindo (Real local history) */}
             {watchHistory.length > 0 && (
               <MediaRow title="Continuar Assistindo" badge="Meu Histórico">
@@ -415,7 +403,7 @@ export default function App() {
               </MediaRow>
             )}
 
-            {/* Row 2: TOP 10 DE HOJE (Outlined numbers with real titles from provider) */}
+            {/* Row 2: TOP 10 DE HOJE (Outlined numbers with real titles strictly deduplicated) */}
             {top10Items.length > 0 && (
               <Top10Row
                 items={top10Items}
@@ -428,6 +416,158 @@ export default function App() {
                 }}
               />
             )}
+
+            {/* Módulo Futebol Ao Vivo / Agenda Esportiva na Tela Inicial */}
+            {iptvService.sportsMatches.length > 0 && (
+              <section className="relative px-8 my-6 select-none animate-fade-in">
+                <div className="flex items-center justify-between mb-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-gradient-to-br from-amber-400/20 to-amber-500/10 border border-amber-400/30 text-[#FFD700] shadow-lg shadow-amber-500/10">
+                      <Trophy className="w-5 h-5 text-[#FFD700]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-display font-black text-lg sm:text-xl text-white tracking-wide">
+                          FUTEBOL <span className="text-[#FFD700]">AO VIVO</span> & AGENDA ESPORTIVA
+                        </h2>
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-rose-600/20 border border-rose-500/30 text-rose-400">
+                          <Radio className="w-3 h-3 animate-pulse text-rose-500" />
+                          <span>Partidas de Hoje</span>
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium">
+                        Cards dos confrontos com data, horário exato da partida e canais integrados
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setActiveTab('sports')}
+                    className="tv-focusable flex items-center gap-1.5 text-xs font-bold text-amber-400 hover:text-amber-300 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 outline-none transition-colors border border-white/5"
+                  >
+                    <span>Ver Agenda Completa</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Horizontal Match Cards Carousel */}
+                <div className="flex items-stretch gap-4 overflow-x-auto no-scrollbar scroll-smooth py-1 px-1 -mx-1">
+                  {iptvService.sportsMatches.slice(0, 8).map((match) => {
+                    const isLive = match.status === 'live';
+                    return (
+                      <div
+                        key={match.id}
+                        tabIndex={0}
+                        onClick={() => {
+                          const channel =
+                            channels.find(
+                              (c) =>
+                                c.name.toLowerCase().includes(match.channelName.toLowerCase()) ||
+                                match.channelName.toLowerCase().includes(c.name.toLowerCase())
+                            ) ||
+                            channels.find((c) => (c.category_name || '').toLowerCase().includes('esporte')) ||
+                            channels[0];
+                          if (channel) {
+                            handlePlayChannel(channel);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            const channel =
+                              channels.find(
+                                (c) =>
+                                  c.name.toLowerCase().includes(match.channelName.toLowerCase()) ||
+                                  match.channelName.toLowerCase().includes(c.name.toLowerCase())
+                              ) || channels[0];
+                            if (channel) handlePlayChannel(channel);
+                          }
+                        }}
+                        className="tv-focusable tv-focus-target group relative w-72 sm:w-80 flex-shrink-0 cursor-pointer rounded-2xl p-4 bg-[#14161C] border border-white/10 hover:border-amber-400/50 focus:border-[#FFD700] focus:scale-[1.02] flex flex-col justify-between transition-all outline-none shadow-lg"
+                      >
+                        {/* Header: Competition & Kickoff Time */}
+                        <div className="flex items-center justify-between pb-2.5 border-b border-white/5 mb-3 text-xs">
+                          <span className="font-semibold text-slate-300 truncate max-w-[170px]">
+                            {match.competition}
+                          </span>
+                          {isLive ? (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white animate-pulse">
+                              <Radio className="w-2.5 h-2.5" />
+                              AO VIVO
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+                              <Calendar className="w-3 h-3 text-amber-400" />
+                              {match.timeDisplay}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Clash / Teams Row */}
+                        <div className="flex items-center justify-between gap-3 my-2">
+                          {/* Home Team */}
+                          <div className="flex-1 text-center truncate">
+                            <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 mx-auto flex items-center justify-center font-bold text-xs text-white mb-1.5 shadow group-focus:border-amber-400 group-focus:text-amber-300 transition-colors">
+                              {match.homeTeam.substring(0, 3).toUpperCase()}
+                            </div>
+                            <span className="font-bold text-xs text-slate-100 block truncate">
+                              {match.homeTeam}
+                            </span>
+                          </div>
+
+                          {/* Score or VS */}
+                          <div className="px-2 text-center shrink-0">
+                            {isLive && match.scoreHome !== undefined ? (
+                              <div className="font-mono font-black text-xl text-[#FFD700] tracking-wider drop-shadow">
+                                {match.scoreHome} : {match.scoreAway}
+                              </div>
+                            ) : (
+                              <span className="font-display font-black text-xs text-slate-500 uppercase tracking-widest px-2 py-1 rounded bg-white/5 border border-white/5">
+                                VS
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Away Team */}
+                          <div className="flex-1 text-center truncate">
+                            <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 mx-auto flex items-center justify-center font-bold text-xs text-white mb-1.5 shadow group-focus:border-amber-400 group-focus:text-amber-300 transition-colors">
+                              {match.awayTeam.substring(0, 3).toUpperCase()}
+                            </div>
+                            <span className="font-bold text-xs text-slate-100 block truncate">
+                              {match.awayTeam}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Footer: Channel Link & Tune In */}
+                        <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 text-slate-400 truncate max-w-[170px]">
+                            <Tv className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span className="truncate">{match.channelName}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-amber-400 font-bold text-[11px] group-hover:text-amber-300 group-focus:text-[#FFD700]">
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>Sintonizar</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Mosaico de Destaques - Visual Reference Composition */}
+            <HighlightsMosaic
+              featuredMovie={movies[0] || null}
+              featuredSeries={series[0] || null}
+              featuredChannel={channels[0] || null}
+              secondaryMovie={movies[1] || null}
+              onSelectMovie={handleOpenMovie}
+              onSelectSeries={handleOpenSeries}
+              onSelectChannel={handlePlayChannel}
+              onFocusItem={(item) => setSpotlightItem(item)}
+            />
 
             {/* Row 3: Global Filmes em Destaque (Real provider movies) */}
             {movies.length > 0 && (
@@ -596,6 +736,21 @@ export default function App() {
           currentChannelId={activePlayer.currentChannelId}
           onSwitchChannel={handlePlayChannel}
           mediaMetadata={activePlayer.mediaMetadata}
+          recommendations={
+            deduplicateList([...movies, ...series])
+              .filter((item) => item.name !== activePlayer.title)
+              .slice(0, 16)
+          }
+          onSelectRecommendation={(item) => {
+            if ((item as any).series_id) {
+              handleOpenSeries(item as SeriesItem);
+            } else {
+              const url =
+                (item as any).stream_url ||
+                iptvService.getStreamUrl('movie', (item as any).stream_id || item.id);
+              handlePlayMedia(url, item.name);
+            }
+          }}
           onClose={() => {
             setActivePlayer(null);
             setWatchHistory(iptvService.getWatchHistory());

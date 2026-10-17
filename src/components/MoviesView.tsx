@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MovieItem, IptvCategory } from '../types/iptv';
+import { deduplicateList } from '../services/iptvService';
 import { MediaCard } from './MediaCard';
 import { Film } from 'lucide-react';
 
@@ -16,10 +17,12 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  const filteredMovies =
+  const baseMovies =
     selectedCategory === 'all'
       ? movies
       : movies.filter((m) => m.category_id === selectedCategory);
+
+  const filteredMovies = deduplicateList(baseMovies);
 
   return (
     <div className="px-8 py-6 max-w-7xl mx-auto animate-fade-in">

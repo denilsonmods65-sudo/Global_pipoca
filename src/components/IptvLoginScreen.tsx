@@ -54,6 +54,41 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
     }
   };
 
+  // Dedicated key handler for Backspace, Delete and Android TV KEYCODE_DEL (67)
+  const handleInputKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    currentValue: string,
+    setValue: (val: string) => void
+  ) => {
+    const isDelKey =
+      e.key === 'Backspace' ||
+      e.key === 'Delete' ||
+      e.keyCode === 8 ||
+      e.keyCode === 46 ||
+      e.keyCode === 67;
+
+    if (isDelKey) {
+      // Stop event from bubbling up to global TV back navigation
+      e.stopPropagation();
+
+      // Ensure erasure executes reliably even on Android TV remotes/WebViews sending code 67
+      if (e.keyCode === 67) {
+        e.preventDefault();
+        const target = e.currentTarget;
+        const start = target.selectionStart ?? currentValue.length;
+        const end = target.selectionEnd ?? currentValue.length;
+        if (start > 0 || start !== end) {
+          const delStart = start === end ? start - 1 : start;
+          const newVal = currentValue.slice(0, delStart) + currentValue.slice(end);
+          setValue(newVal);
+          setTimeout(() => {
+            target.setSelectionRange(delStart, delStart);
+          }, 0);
+        }
+      }
+    }
+  };
+
   const handleXtreamSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -290,6 +325,7 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
                     type="text"
                     value={serverUrl}
                     onChange={(e) => setServerUrl(e.target.value)}
+                    onKeyDown={(e) => handleInputKeyDown(e, serverUrl, setServerUrl)}
                     placeholder="ex: http://servidor-iptv.com:8080"
                     autoComplete="url"
                     className="tv-focusable w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
@@ -311,6 +347,7 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
+                      onKeyDown={(e) => handleInputKeyDown(e, username, setUsername)}
                       placeholder="Nome de usuário"
                       autoComplete="username"
                       className="tv-focusable w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
@@ -328,6 +365,7 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        onKeyDown={(e) => handleInputKeyDown(e, password, setPassword)}
                         placeholder="Senha do servidor"
                         autoComplete="current-password"
                         className="tv-focusable w-full pl-4 pr-11 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
@@ -371,6 +409,7 @@ export const IptvLoginScreen: React.FC<IptvLoginScreenProps> = ({
                     type="url"
                     value={m3uUrl}
                     onChange={(e) => setM3uUrl(e.target.value)}
+                    onKeyDown={(e) => handleInputKeyDown(e, m3uUrl, setM3uUrl)}
                     placeholder="https://provedor.com/lista.m3u8"
                     className="tv-focusable w-full px-4 py-3 rounded-xl bg-black/60 border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-amber-400 outline-none transition-colors"
                   />
