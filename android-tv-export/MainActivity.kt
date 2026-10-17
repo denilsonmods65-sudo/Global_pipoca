@@ -1,6 +1,5 @@
 package com.noctraplay.iptv
 
-// Atualização limpa para correção de compilação - NOCTRA PLAY
 import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
@@ -48,31 +47,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializePlayer() {
-        // Build optimized ExoPlayer instance for IPTV HLS / TS / MP4 streams
         exoPlayer = ExoPlayer.Builder(this)
             .setSeekBackIncrementMs(10000)
             .setSeekForwardIncrementMs(10000)
             .build()
             .apply {
                 addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_BUFFERING -> { }
-                            Player.STATE_READY -> { }
-                            Player.STATE_ENDED -> { }
-                            Player.STATE_IDLE -> { }
-                        }
-                    }
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) { }
+                    override fun onPlaybackStateChanged(playbackState: Int) {}
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {}
                 })
             }
         
         playerView?.player = exoPlayer
     }
 
-    /**
-     * Play an IPTV Stream (Live M3U8, TS, or VOD MP4)
-     */
     fun playStream(url: String, isLive: Boolean) {
         val mimeType = if (url.contains(".m3u8") || isLive) {
             MimeTypes.APPLICATION_M3U8
@@ -92,30 +80,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Android TV D-Pad Key Handling
-     */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER -> {
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_DPAD_UP -> {
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_BACK -> {
-                return super.onKeyDown(keyCode, event)
-            }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 exoPlayer?.let {
                     if (it.isPlaying) it.pause() else it.play()
