@@ -13,9 +13,13 @@ import {
   XtreamUserInfo,
 } from '../types/iptv';
 
-// Proxy helper to bridge CORS when calling external IPTV servers from browser
+// Proxy helper to bridge CORS when calling external IPTV servers from browser.
+// When running packaged inside Android TV APK (file:// protocol), access IPTV server directly.
 export function buildProxyUrl(rawUrl: string): string {
   if (!rawUrl) return '';
+  if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+    return rawUrl;
+  }
   if (rawUrl.startsWith('/api/')) return rawUrl;
   return `/api/iptv/proxy?url=${encodeURIComponent(rawUrl)}`;
 }

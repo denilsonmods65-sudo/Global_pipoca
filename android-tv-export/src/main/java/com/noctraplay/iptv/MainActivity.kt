@@ -1,149 +1,165 @@
 package com.noctraplay.iptv
 
-import android.content.Intent
+import android.annotation.SuppressLint
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.webkit.ConsoleMessage
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
 
 /**
  * NOCTRA PLAY - Main Android TV Activity
- * Optimized for Android TV Box, Fire TV Stick, and Google TV
- * Incorporates Leanback remote navigation, Media3/ExoPlayer, and hardware acceleration
+ * Loads the complete React 10-foot UI from local assets (www/index.html) into an optimized,
+ * hardware-accelerated Android TV WebView with full D-Pad remote control integration.
  */
 class MainActivity : AppCompatActivity() {
 
-    private var exoPlayer: ExoPlayer? = null
-    private var playerView: PlayerView? = null
+    private lateinit var webView: WebView
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Keep screen on for TV playback
+        // Keep screen on during TV video playback
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Hide navigation bars for immersive 10-foot TV experience
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_FULLSCREEN
-        )
+        // Hide system UI / status bars for immersive TV experience
+        hideSystemUI()
 
         setContentView(R.layout.activity_main)
-        initializePlayer()
+
+        webView = findViewById(R.id.webView)
+        setupWebView()
+
+        // Load production web application from assets
+        webView.loadUrl("file:///android_asset/www/index.html")
     }
 
-    private fun initializePlayer() {
-        // Build optimized ExoPlayer instance for IPTV HLS / TS / MP4 streams
-        exoPlayer = ExoPlayer.Builder(this)
-            .setSeekBackIncrementMs(10000)
-            .setSeekForwardIncrementMs(10000)
-            .build()
-            .apply {
-                addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_BUFFERING -> {
-                                // Show buffering spinner
-                            }
-                            Player.STATE_READY -> {
-                                // Playback ready
-                            }
-                            Player.STATE_ENDED -> {
-                                // Content completed
-                            }
-                            Player.STATE_IDLE -> {
-                                // Idle
-                            }
-                        }
-                    }
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun setupWebView() {
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            databaseEnabled = true
 
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        // Handle network timeout, format error, or codec issue gracefully
-                    }
-                })
+            // Allow media autoplay without touch/gesture for TV
+            mediaPlaybackRequiresUserGesture = false
+
+            // Mixed content allow for HTTP IPTV streams and logos
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+
+            // Asset loading security & compatibility
+            allowFileAccess = true
+            allowContentAccess = true
+
+            // Allow local assets to read other local assets
+            @Suppress("DEPRECATION")
+            allowFileAccessFromFileURLs = true
+            @Suppress("DEPRECATION")
+            allowUniversalAccessFromFileURLs = true
+
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            cacheMode = WebSettings.LOAD_DEFAULT
+        }
+
+        // Enable hardware acceleration
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
+        // Focus setup for TV remote
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
+        webView.requestFocus()
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                return false
             }
+        }
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                request?.grant(request.resources)
+            }
+
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                return super.onConsoleMessage(consoleMessage)
+            }
+        }
     }
 
-    /**
-     * Play an IPTV Stream (Live M3U8, TS, or VOD MP4)
-     */
-    fun playStream(url: String, isLive: Boolean) {
-        val mimeType = if (url.contains(".m3u8") || isLive) {
-            MimeTypes.APPLICATION_M3U8
+    private fun hideSystemUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.let { controller ->
+                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
         } else {
-            MimeTypes.APPLICATION_MP4
-        }
-
-        val mediaItem = MediaItem.Builder()
-            .setUri(url)
-            .setMimeType(mimeType)
-            .build()
-
-        exoPlayer?.apply {
-            setMediaItem(mediaItem)
-            prepare()
-            playWhenReady = true
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+            )
         }
     }
 
     /**
-     * Android TV D-Pad Key Handling
+     * TV Remote D-Pad & Back key handling
      */
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER -> {
-                // Handle OK button selection
-                return super.onKeyDown(keyCode, event)
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_UP) {
+                // Dispatch Escape/Back event to the React spatial navigation
+                webView.evaluateJavascript(
+                    """
+                    (function() {
+                        var evt = new KeyboardEvent('keydown', {
+                            key: 'Escape',
+                            code: 'Escape',
+                            keyCode: 27,
+                            which: 27,
+                            bubbles: true,
+                            cancelable: true
+                        });
+                        window.dispatchEvent(evt);
+                    })();
+                    """.trimIndent(),
+                    null
+                )
             }
-            KeyEvent.KEYCODE_DPAD_UP -> {
-                // Navigate UP
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                // Navigate DOWN
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                // Seek back or navigate left
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                // Seek forward or navigate right
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_BACK -> {
-                // Return to previous screen or exit player
-                return super.onKeyDown(keyCode, event)
-            }
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                exoPlayer?.let {
-                    if (it.isPlaying) it.pause() else it.play()
-                }
-                return true
-            }
+            return true
         }
-        return super.onKeyDown(keyCode, event)
+
+        return super.dispatchKeyEvent(event)
     }
 
-    override fun onStop() {
-        super.onStop()
-        exoPlayer?.pause()
+    override fun onResume() {
+        super.onResume()
+        hideSystemUI()
+        webView.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        webView.onPause()
     }
 
     override fun onDestroy() {
+        webView.destroy()
         super.onDestroy()
-        exoPlayer?.release()
-        exoPlayer = null
     }
 }

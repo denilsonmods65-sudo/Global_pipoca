@@ -1,4 +1,3 @@
-
 name: Build Android APK
 
 on:
@@ -8,6 +7,7 @@ on:
 
 jobs:
   build:
+    name: Build Android TV APK
     runs-on: ubuntu-latest
 
     steps:
@@ -25,54 +25,88 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
-
-      - name: Build web project
-        run: bun run build
-
-      - name: Apply Custom App Icon
         run: |
-          ICON_FILE="file_000000004660820ebf6d6dfc334fcee.png"
-
-          if [ -f "$ICON_FILE" ]; then
-            echo "Aplicando ícone personalizado..."
-
-            if [ -d "android-tv-export/src/main/res" ]; then
-              RES_DIR="android-tv-export/src/main/res"
-            elif [ -d "android/app/src/main/res" ]; then
-              RES_DIR="android/app/src/main/res"
-            elif [ -d "android-tv-export/app/src/main/res" ]; then
-              RES_DIR="android-tv-export/app/src/main/res"
-            else
-              RES_DIR=""
-            fi
-
-            if [ -n "$RES_DIR" ]; then
-              for folder in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-                mkdir -p "$RES_DIR/$folder"
-                cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher.png"
-                cp "$ICON_FILE" "$RES_DIR/$folder/ic_launcher_round.png"
-              done
-              echo "Ícone aplicado com sucesso!"
-            else
-              echo "Pasta de recursos Android não encontrada."
-            fi
+          if [ -f "bun.lock" ]; then
+            bun install --frozen-lockfile || bun install
           else
-            echo "Arquivo de ícone não encontrado."
+            npm install
           fi
 
-      - name: Set up Java JDK
+      - name: Build web project
+        run: |
+          if command -v bun &> /dev/null; then
+            bun run build
+          else
+            npm run build
+          fi
+
+      - name: Package Web Assets for Android
+        run: |
+          echo "Empacotando aplicação web para assets Android..."
+          mkdir -p android-tv-export/src/main/assets/www
+          cp -r dist/* android-tv-export/src/main/assets/www/
+          ls -la android-tv-export/src/main/assets/www/
+
+      - name: Set up ImageMagick
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick
+
+      - name: Generate App Icons and TV Banner
+        run: |
+          echo "Processando ícones e banner do aplicativo Android TV..."
+          
+          # Detect icon file regardless of minor naming differences
+          ICON_FILE=$(ls file_*.png 2>/dev/null | head -n 1)
+          
+          RES_DIR="android-tv-export/src/main/res"
+          mkdir -p "$RES_DIR/drawable"
+          mkdir -p "$RES_DIR/mipmap-mdpi"
+          mkdir -p "$RES_DIR/mipmap-hdpi"
+          mkdir -p "$RES_DIR/mipmap-xhdpi"
+          mkdir -p "$RES_DIR/mipmap-xxhdpi"
+          mkdir -p "$RES_DIR/mipmap-xxxhdpi"
+
+          if [ -n "$ICON_FILE" ] && [ -f "$ICON_FILE" ]; then
+            echo "Gerando mipmaps a partir de: $ICON_FILE"
+            convert "$ICON_FILE" -resize 48x48 "$RES_DIR/mipmap-mdpi/ic_launcher.png"
+            cp "$RES_DIR/mipmap-mdpi/ic_launcher.png" "$RES_DIR/mipmap-mdpi/ic_launcher_round.png"
+            
+            convert "$ICON_FILE" -resize 72x72 "$RES_DIR/mipmap-hdpi/ic_launcher.png"
+            cp "$RES_DIR/mipmap-hdpi/ic_launcher.png" "$RES_DIR/mipmap-hdpi/ic_launcher_round.png"
+            
+            convert "$ICON_FILE" -resize 96x96 "$RES_DIR/mipmap-xhdpi/ic_launcher.png"
+            cp "$RES_DIR/mipmap-xhdpi/ic_launcher.png" "$RES_DIR/mipmap-xhdpi/ic_launcher_round.png"
+            
+            convert "$ICON_FILE" -resize 144x144 "$RES_DIR/mipmap-xxhdpi/ic_launcher.png"
+            cp "$RES_DIR/mipmap-xxhdpi/ic_launcher.png" "$RES_DIR/mipmap-xxhdpi/ic_launcher_round.png"
+            
+            convert "$ICON_FILE" -resize 192x192 "$RES_DIR/mipmap-xxxhdpi/ic_launcher.png"
+            cp "$RES_DIR/mipmap-xxxhdpi/ic_launcher.png" "$RES_DIR/mipmap-xxxhdpi/ic_launcher_round.png"
+            echo "Ícones gerados com sucesso!"
+          else
+            echo "Aviso: Imagem de ícone não encontrada no root."
+          fi
+
+          # Generate TV Banner if not already present
+          BANNER_SRC="src/assets/images/noctra_tv_banner_1792121160514.jpg"
+          if [ -f "$BANNER_SRC" ] && [ ! -f "$RES_DIR/drawable/noctra_tv_banner.png" ]; then
+            convert "$BANNER_SRC" -resize 320x180^ -gravity center -extent 320x180 "$RES_DIR/drawable/noctra_tv_banner.png"
+            echo "Banner de TV gerado com sucesso!"
+          fi
+
+      - name: Set up Java JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
+      - name: Set up Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.10.2'
 
-      - name: Build APK
+      - name: Build Android APK with Gradle
         run: |
           cd android-tv-export
           gradle --no-daemon assembleDebug
@@ -80,7 +114,6 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: NOCTRA-PLAY-APK
+          name: NOCTRA-PLAY-TV-APK
           path: android-tv-export/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          

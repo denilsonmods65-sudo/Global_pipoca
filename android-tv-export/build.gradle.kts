@@ -52,6 +52,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.webkit:webkit:1.12.1")
     implementation("androidx.leanback:leanback:1.0.0")
     implementation("androidx.leanback:leanback-preference:1.0.0")
 
