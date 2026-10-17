@@ -22,11 +22,7 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
         android:label="NOCTRA PLAY"
-        android:banner="@drawable/noctra_tv_banner"
-        android:logo="@drawable/noctra_tv_banner"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Leanback"
         android:usesCleartextTraffic="true"
@@ -35,8 +31,7 @@
         <!-- Main Leanback TV Activity -->
         <activity
             android:name=".MainActivity"
-            android:banner="@drawable/noctra_tv_banner"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|locale|layoutDirection"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="landscape">
