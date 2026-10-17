@@ -12,11 +12,6 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
-/**
- * NOCTRA PLAY - Main Android TV Activity
- * Optimized for Android TV Box, Fire TV Stick, and Google TV
- * Incorporates Leanback remote navigation, Media3/ExoPlayer, and hardware acceleration
- */
 class MainActivity : AppCompatActivity() {
 
     private var exoPlayer: ExoPlayer? = null
@@ -38,7 +33,16 @@ class MainActivity : AppCompatActivity() {
             or View.SYSTEM_UI_FLAG_FULLSCREEN
         )
 
-        setContentView(R.layout.activity_main)
+        // Create PlayerView programmatically to avoid missing layout XML errors
+        playerView = PlayerView(this).apply {
+            layoutParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT
+            )
+            useController = true
+        }
+        setContentView(playerView)
+
         initializePlayer()
     }
 
@@ -52,26 +56,17 @@ class MainActivity : AppCompatActivity() {
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         when (playbackState) {
-                            Player.STATE_BUFFERING -> {
-                                // Show buffering spinner
-                            }
-                            Player.STATE_READY -> {
-                                // Playback ready
-                            }
-                            Player.STATE_ENDED -> {
-                                // Content completed
-                            }
-                            Player.STATE_IDLE -> {
-                                // Idle
-                            }
+                            Player.STATE_BUFFERING -> { }
+                            Player.STATE_READY -> { }
+                            Player.STATE_ENDED -> { }
+                            Player.STATE_IDLE -> { }
                         }
                     }
-
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        // Handle network timeout, format error, or codec issue gracefully
-                    }
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) { }
                 })
             }
+        
+        playerView?.player = exoPlayer
     }
 
     /**
@@ -103,27 +98,21 @@ class MainActivity : AppCompatActivity() {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER -> {
-                // Handle OK button selection
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_UP -> {
-                // Navigate UP
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
-                // Navigate DOWN
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                // Seek back or navigate left
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                // Seek forward or navigate right
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_BACK -> {
-                // Return to previous screen or exit player
                 return super.onKeyDown(keyCode, event)
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
