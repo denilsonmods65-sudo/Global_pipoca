@@ -13,6 +13,7 @@ import {
   WatchProgress,
 } from './types/iptv';
 import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
 import { HeroBanner } from './components/HeroBanner';
 import { HighlightsMosaic } from './components/HighlightsMosaic';
 import { Top10Row } from './components/Top10Row';
@@ -30,7 +31,7 @@ import { SportsScheduleView } from './components/SportsScheduleView';
 import { KidsAnimeView } from './components/KidsAnimeView';
 import { TvSearchView } from './components/TvSearchView';
 import { useTvSpatialNavigation } from './hooks/useTvNavigation';
-import { Tv, Popcorn, AlertCircle, Trophy, Radio, Calendar, Play, ChevronRight } from 'lucide-react';
+import { Tv, Popcorn, AlertCircle, Trophy, Radio, Calendar, Play, ChevronRight, Clock } from 'lucide-react';
 
 export default function App() {
   const iptvService = IptvService.getInstance();
@@ -46,6 +47,19 @@ export default function App() {
   const [movies, setMovies] = useState<MovieItem[]>([]);
   const [series, setSeries] = useState<SeriesItem[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
+  const [timeString, setTimeString] = useState<string>('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setTimeString(
+        now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      );
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Modals & Navigation
   const [loginModalOpen, setLoginModalOpen] = useState<boolean>(false);
@@ -284,12 +298,11 @@ export default function App() {
   const hasContent = channels.length > 0 || movies.length > 0 || series.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#0C0D10] text-slate-100 flex flex-col font-sans select-none antialiased">
-      {/* Top Header - GLOBAL PIPOCA */}
-      <Header
+    <div className="h-screen w-screen bg-[#07080E] text-slate-100 flex flex-row font-sans select-none antialiased overflow-hidden">
+      {/* Menu Lateral (Sidebar) com Início, Filmes, Séries, Canais ao Vivo, Futebol, Meus Conteúdos, Pesquisa e Configurações */}
+      <Sidebar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onOpenSearch={() => setActiveTab('search')}
         onOpenSettings={() => setLoginModalOpen(true)}
         onToggleRemote={() => setRemoteOpen(!remoteOpen)}
         onOpenExportGuide={() => setExportModalOpen(true)}
@@ -298,8 +311,41 @@ export default function App() {
         username={iptvService.userInfo?.username}
       />
 
-      {/* Main Content Sections */}
-      <main className="flex-1 pb-16">
+      {/* Main Content Area on the Right */}
+      <div
+        data-tv-section="main-content"
+        className="flex-1 flex flex-col h-full overflow-y-auto no-scrollbar relative"
+      >
+        {/* Top TV Bar with Live Clock and Breadcrumb */}
+        <div className="flex items-center justify-between px-8 pt-4 pb-2 z-10 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold tracking-widest text-amber-400 uppercase bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">
+              GLOBAL PIPOCA
+            </span>
+            <span className="text-white/20">/</span>
+            <span className="text-xs font-bold text-slate-300">
+              {activeTab === 'home' && 'Início'}
+              {activeTab === 'movies' && 'Filmes'}
+              {activeTab === 'series' && 'Séries'}
+              {activeTab === 'live' && 'Canais ao Vivo'}
+              {activeTab === 'sports' && 'Futebol & Agenda Esportiva'}
+              {activeTab === 'kids' && 'Meus Conteúdos'}
+              {activeTab === 'search' && 'Pesquisa'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {timeString && (
+              <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-300 px-3 py-1 rounded-lg bg-white/5 border border-white/5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>{timeString}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Main Content Sections */}
+        <main className="flex-1 pb-16">
         {/* If the authenticated server returned an empty catalog */}
         {!hasContent && (
           <div className="max-w-2xl mx-auto my-16 p-8 rounded-3xl bg-[#14161C] border border-amber-400/30 text-center">
@@ -710,6 +756,7 @@ export default function App() {
           />
         )}
       </main>
+      </div>
 
       {/* Details View Modal (Mandatory: Opens first before playing) */}
       {selectedItem && (

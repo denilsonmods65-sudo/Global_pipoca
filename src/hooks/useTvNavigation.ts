@@ -172,7 +172,18 @@ export function useTvSpatialNavigation(options?: {
           return bestTarget;
         }
 
-        // Fallback for rightward candidate
+        // If inside sidebar and pressing RIGHT, jump to hero play button or first main element
+        const isInsideSidebar = current.closest('[data-tv-section="sidebar"]');
+        if (isInsideSidebar) {
+          const heroPlay = document.getElementById('hero-play-btn');
+          if (heroPlay && heroPlay.offsetParent !== null) return heroPlay;
+
+          const mainFocusable = candidates.find(
+            (el) => !el.closest('[data-tv-section="sidebar"]') && el.offsetParent !== null
+          );
+          if (mainFocusable) return mainFocusable;
+        }
+
         return null;
       }
 
@@ -201,6 +212,15 @@ export function useTvSpatialNavigation(options?: {
             }
           }
           return bestTarget;
+        }
+
+        // If in main content and reached the leftmost element, jump to active sidebar item
+        const isInsideSidebar = current.closest('[data-tv-section="sidebar"]');
+        if (!isInsideSidebar) {
+          const activeSidebar =
+            document.querySelector<HTMLElement>('[data-tv-section="sidebar"] [data-tv-active="true"]') ||
+            document.querySelector<HTMLElement>('[data-tv-section="sidebar"] .tv-focusable');
+          if (activeSidebar) return activeSidebar;
         }
 
         return null;

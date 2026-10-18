@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Star, Film, Tv } from 'lucide-react';
+import { Film, Tv } from 'lucide-react';
 
 interface MediaCardProps {
   id: string;
@@ -21,18 +21,15 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   title,
   imageUrl,
   rating,
-  year,
-  subtitle,
   type = 'movie',
   progress,
-  remainingMinutes,
   aspectRatio = 'poster',
   onClick,
   onFocus,
 }) => {
   const [imgError, setImgError] = useState(false);
 
-  const isLandscape = aspectRatio === 'landscape' || type === 'live' || progress !== undefined;
+  const isLandscape = aspectRatio === 'landscape' || progress !== undefined;
 
   return (
     <div
@@ -47,13 +44,13 @@ export const MediaCard: React.FC<MediaCardProps> = ({
           onClick();
         }
       }}
-      className={`tv-focusable tv-focus-target group relative flex-shrink-0 cursor-pointer rounded-xl overflow-hidden bg-[#13151B] border border-white/5 transition-all duration-200 select-none outline-none ${
-        isLandscape ? 'w-48 sm:w-56 md:w-60' : 'w-28 sm:w-32 md:w-36'
+      className={`tv-focusable tv-focus-target group relative flex-shrink-0 cursor-pointer flex flex-col transition-all duration-200 select-none outline-none ${
+        isLandscape ? 'w-44 sm:w-48' : 'w-24 sm:w-28 md:w-[120px]'
       }`}
     >
-      {/* Poster / Thumbnail Container */}
+      {/* Poster / Thumbnail Container with 2:3 aspect ratio */}
       <div
-        className={`relative w-full overflow-hidden bg-[#181A22] ${
+        className={`relative w-full rounded-xl overflow-hidden bg-[#14161C] border border-white/10 shadow-md ${
           isLandscape ? 'aspect-video' : 'aspect-[2/3]'
         }`}
       >
@@ -67,70 +64,44 @@ export const MediaCard: React.FC<MediaCardProps> = ({
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center p-3 bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500">
+          <div className="w-full h-full flex flex-col items-center justify-center p-2.5 bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500">
             {type === 'live' ? (
-              <Tv className="w-7 h-7 text-amber-400/50 mb-1.5" />
+              <Tv className="w-6 h-6 text-red-500/70 mb-1" />
             ) : (
-              <Film className="w-7 h-7 text-amber-400/50 mb-1.5" />
+              <Film className="w-6 h-6 text-red-500/70 mb-1" />
             )}
-            <span className="text-[10px] text-center font-medium line-clamp-2 text-zinc-400 leading-tight">
+            <span className="text-[9px] text-center font-bold line-clamp-2 text-zinc-400 leading-tight">
               {title}
             </span>
           </div>
         )}
 
         {/* Ambient Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0C0D10] via-black/20 to-transparent opacity-80 group-focus:opacity-60 transition-opacity" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-focus:opacity-40 transition-opacity" />
 
         {/* Rating or Live tag */}
-        <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
-          {type === 'live' ? (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-600 text-white tracking-wider animate-pulse">
-              AO VIVO
-            </span>
-          ) : rating ? (
-            <span className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-bold bg-black/80 backdrop-blur-md text-amber-400 border border-white/10">
-              <Star className="w-2.5 h-2.5 fill-current" />
-              <span>{rating}</span>
-            </span>
-          ) : null}
-        </div>
-
-        {/* Play Icon Hint on Focus */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity bg-black/40">
-          <div className="w-10 h-10 rounded-full bg-[#FFD700] text-black flex items-center justify-center shadow-lg shadow-amber-500/30 scale-90 group-focus:scale-100 transition-transform">
-            <Play className="w-4 h-4 fill-current ml-0.5" />
+        {rating && (
+          <div className="absolute top-1.5 right-1.5 px-1 py-0.5 rounded text-[8px] font-bold bg-black/80 backdrop-blur-md text-amber-400 border border-white/10">
+            ★ {rating}
           </div>
-        </div>
+        )}
 
-        {/* Continue Watching Progress Bar (Reference 1 style) */}
+        {/* Continue Watching Progress Bar */}
         {progress !== undefined && progress > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-800">
             <div
-              className="h-full bg-gradient-to-r from-amber-500 to-[#FFD700]"
+              className="h-full bg-gradient-to-r from-red-600 to-[#E50914]"
               style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
             />
           </div>
         )}
       </div>
 
-      {/* Card Info */}
-      <div className="p-2 sm:p-2.5">
-        <h4 className="font-bold text-xs text-slate-100 line-clamp-1 group-focus:text-[#FFD700] transition-colors leading-tight">
+      {/* Card Title Cleanly Displayed Below the Poster matching Reference */}
+      <div className="pt-1.5 px-0.5">
+        <h4 className="font-semibold text-[11px] sm:text-xs text-slate-200 truncate group-focus:text-white transition-colors leading-tight">
           {title}
         </h4>
-        <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400">
-          <div className="flex items-center gap-1 truncate">
-            {year && <span>{year}</span>}
-            {year && subtitle && <span aria-hidden="true">·</span>}
-            {subtitle && <span className="truncate">{subtitle}</span>}
-          </div>
-          {remainingMinutes !== undefined && remainingMinutes > 0 && (
-            <span className="text-amber-400 font-mono text-[9px] shrink-0 font-semibold">
-              {remainingMinutes}m
-            </span>
-          )}
-        </div>
       </div>
     </div>
   );

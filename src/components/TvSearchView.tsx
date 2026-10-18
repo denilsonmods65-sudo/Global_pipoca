@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, X, Film, Tv, Play } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Search, X, Film, Tv, Keyboard, Smartphone } from 'lucide-react';
 import { LiveChannel, MovieItem, SeriesItem } from '../types/iptv';
 import { MediaCard } from './MediaCard';
 
@@ -23,8 +23,11 @@ export const TvSearchView: React.FC<TvSearchViewProps> = ({
   onClose,
 }) => {
   const [query, setQuery] = useState('');
+  // Prevent duplicate keyboards: choose either 'virtual' (D-Pad onscreen) or 'native' (Android TV Gboard/Voice)
+  const [keyboardMode, setKeyboardMode] = useState<'virtual' | 'native'>('virtual');
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // TV On-Screen Virtual Keyboard letters for D-pad typing convenience
+  // TV On-Screen Virtual Keyboard keys for D-pad typing convenience
   const keyRows = [
     ['A', 'B', 'C', 'D', 'E', 'F', '1', '2', '3'],
     ['G', 'H', 'I', 'J', 'K', 'L', '4', '5', '6'],
@@ -44,6 +47,12 @@ export const TvSearchView: React.FC<TvSearchViewProps> = ({
       setQuery((q) => q + key);
     }
   };
+
+  useEffect(() => {
+    if (keyboardMode === 'native') {
+      inputRef.current?.focus();
+    }
+  }, [keyboardMode]);
 
   const normalized = query.trim().toLowerCase();
 
@@ -73,85 +82,138 @@ export const TvSearchView: React.FC<TvSearchViewProps> = ({
     filteredChannels.length + filteredMovies.length + filteredSeries.length;
 
   return (
-    <div className="px-8 py-6 max-w-7xl mx-auto animate-fade-in">
+    <div
+      data-tv-section="search-view"
+      className="px-6 sm:px-8 py-5 max-w-7xl mx-auto animate-fade-in select-none"
+    >
       {/* Search Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-5">
         <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E50914]" />
           <input
+            ref={inputRef}
             type="text"
+            id="search-input-field"
             value={query}
+            readOnly={keyboardMode === 'virtual'}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Digite o nome do filme, série, canal ou ator..."
-            className="tv-focusable w-full pl-12 pr-12 py-3.5 rounded-2xl bg-[#14161C] border border-white/10 text-white placeholder-zinc-500 text-base focus:border-amber-400 outline-none transition-all shadow-lg"
+            placeholder={
+              keyboardMode === 'virtual'
+                ? 'Navegue pelas letras do teclado virtual abaixo com o controle...'
+                : 'Digite ou dite pelo microfone do controle da TV...'
+            }
+            data-tv-next-down={keyboardMode === 'virtual' ? 'key-A' : 'search-results-first'}
+            className="tv-focusable w-full pl-11 pr-12 py-3 rounded-2xl bg-[#12141A] border border-white/10 text-white placeholder-zinc-500 text-sm focus:border-[#E50914] outline-none transition-all shadow-md"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="tv-focusable absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-slate-400 hover:text-white"
+              className="tv-focusable absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-white"
+              title="Limpar pesquisa"
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
+
+        {/* Keyboard Strategy Switch Button (Guarantees one single keyboard strategy at a time) */}
+        <button
+          onClick={() => {
+            setKeyboardMode((m) => (m === 'virtual' ? 'native' : 'virtual'));
+          }}
+          className="tv-focusable flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold outline-none border border-white/10 whitespace-nowrap"
+          title="Alternar modo do teclado"
+        >
+          {keyboardMode === 'virtual' ? (
+            <>
+              <Smartphone className="w-4 h-4 text-[#E50914]" />
+              <span>Usar Teclado Nativo da TV (Voz)</span>
+            </>
+          ) : (
+            <>
+              <Keyboard className="w-4 h-4 text-[#E50914]" />
+              <span>Usar Teclado em Tela (D-Pad)</span>
+            </>
+          )}
+        </button>
       </div>
 
-      {/* On-Screen Virtual Keyboard for Remote D-Pad */}
-      <div className="p-4 rounded-2xl bg-black/40 border border-white/5 mb-8">
-        <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block mb-3">
-          Teclado Virtual TV (Navegue com o Controle Remoto)
-        </span>
-        <div className="space-y-2">
-          {keyRows.map((row, rIdx) => (
-            <div key={rIdx} className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              {row.map((k) => (
-                <button
-                  key={k}
-                  onClick={() => handleVirtualKey(k)}
-                  className={`tv-focusable px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all outline-none ${
-                    k === 'ESPAÇO' || k === 'APAGAR' || k === 'LIMPAR'
-                      ? 'bg-white/10 text-amber-300 hover:bg-white/20'
-                      : 'bg-zinc-800/80 text-white hover:bg-amber-400 hover:text-black focus:bg-amber-400 focus:text-black'
-                  }`}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-          ))}
+      {/* On-Screen Virtual Keyboard (Only rendered in virtual mode to prevent double keyboard overlap) */}
+      {keyboardMode === 'virtual' && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-[#0F1116] border border-white/10 mb-6">
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Keyboard className="w-3.5 h-3.5 text-[#E50914]" />
+              <span>Teclado em Tela (Navegue com as setas e confirme com OK)</span>
+            </span>
+          </div>
+
+          <div className="space-y-1.5">
+            {keyRows.map((row, rIdx) => (
+              <div key={rIdx} className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {row.map((k) => (
+                  <button
+                    key={k}
+                    id={`key-${k}`}
+                    onClick={() => handleVirtualKey(k)}
+                    className={`tv-focusable px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-xs font-bold transition-all outline-none ${
+                      k === 'ESPAÇO' || k === 'APAGAR' || k === 'LIMPAR'
+                        ? 'bg-white/10 text-slate-200 hover:bg-white/20'
+                        : 'bg-zinc-800/80 text-white hover:bg-[#E50914] focus:bg-[#E50914] focus:text-white'
+                    }`}
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Results Section */}
+      {/* Results Header */}
       {normalized && (
         <div className="mb-4 text-xs font-semibold text-slate-400">
-          Resultados encontrados: <span className="text-amber-400 font-bold">{totalResults}</span>
+          Resultados encontrados: <span className="text-white font-bold">{totalResults}</span>
         </div>
       )}
 
       {/* Filtered Channels */}
       {filteredChannels.length > 0 && (
-        <div className="mb-8">
-          <h3 className="font-display font-bold text-lg text-white flex items-center gap-2 mb-3">
-            <Tv className="w-4 h-4 text-amber-400" />
+        <div className="mb-6">
+          <h3 className="font-display font-bold text-sm sm:text-base text-white flex items-center gap-2 mb-2.5">
+            <Tv className="w-4 h-4 text-[#E50914]" />
             <span>Canais ao Vivo ({filteredChannels.length})</span>
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {filteredChannels.map((ch) => (
-              <div
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {filteredChannels.map((ch, idx) => (
+              <button
                 key={ch.id}
-                tabIndex={0}
+                id={idx === 0 ? 'search-results-first' : undefined}
                 onClick={() => onSelectChannel(ch)}
-                className="tv-focusable p-3 rounded-xl bg-zinc-900 border border-white/5 hover:border-amber-400/40 focus:border-amber-400 cursor-pointer flex items-center gap-3 transition-all outline-none"
+                className="tv-focusable flex items-center gap-2.5 p-2 rounded-xl bg-[#12141A] border border-white/10 text-left outline-none hover:border-[#E50914] focus:border-[#E50914]"
               >
-                <div className="w-8 h-8 rounded bg-black/40 flex items-center justify-center font-bold text-xs text-amber-400 shrink-0">
-                  <Play className="w-3.5 h-3.5 fill-current" />
+                <div className="w-9 h-9 rounded-lg bg-black/60 flex items-center justify-center shrink-0 overflow-hidden p-1">
+                  {ch.stream_icon ? (
+                    <img
+                      src={ch.stream_icon}
+                      alt={ch.name}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <Tv className="w-4 h-4 text-slate-500" />
+                  )}
                 </div>
-                <div className="truncate flex-1">
-                  <p className="text-xs font-semibold text-white truncate">{ch.name}</p>
-                  <p className="text-[10px] text-zinc-500 truncate">{ch.category_name || 'TV'}</p>
+                <div className="truncate">
+                  <span className="block text-xs font-bold text-white truncate">{ch.name}</span>
+                  <span className="text-[9px] text-slate-400 truncate block">
+                    {ch.category_name || 'Canal'}
+                  </span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -159,23 +221,22 @@ export const TvSearchView: React.FC<TvSearchViewProps> = ({
 
       {/* Filtered Movies */}
       {filteredMovies.length > 0 && (
-        <div className="mb-8">
-          <h3 className="font-display font-bold text-lg text-white flex items-center gap-2 mb-3">
-            <Film className="w-4 h-4 text-amber-400" />
+        <div className="mb-6">
+          <h3 className="font-display font-bold text-sm sm:text-base text-white flex items-center gap-2 mb-2.5">
+            <Film className="w-4 h-4 text-[#E50914]" />
             <span>Filmes ({filteredMovies.length})</span>
           </h3>
-          <div className="flex items-stretch gap-4 overflow-x-auto no-scrollbar py-2">
-            {filteredMovies.map((movie) => (
+          <div className="flex items-stretch gap-3 overflow-x-auto no-scrollbar py-2">
+            {filteredMovies.map((m) => (
               <MediaCard
-                key={movie.id}
-                id={movie.id}
-                title={movie.name}
-                imageUrl={movie.stream_icon}
-                rating={movie.rating}
-                year={movie.year}
-                subtitle={movie.genre}
+                key={m.id}
+                id={m.id}
+                title={m.name}
+                imageUrl={m.stream_icon}
+                rating={m.rating}
+                year={m.year}
                 type="movie"
-                onClick={() => onSelectMovie(movie)}
+                onClick={() => onSelectMovie(m)}
               />
             ))}
           </div>
@@ -184,21 +245,19 @@ export const TvSearchView: React.FC<TvSearchViewProps> = ({
 
       {/* Filtered Series */}
       {filteredSeries.length > 0 && (
-        <div className="mb-8">
-          <h3 className="font-display font-bold text-lg text-white flex items-center gap-2 mb-3">
-            <Tv className="w-4 h-4 text-amber-400" />
+        <div className="mb-6">
+          <h3 className="font-display font-bold text-sm sm:text-base text-white flex items-center gap-2 mb-2.5">
+            <Tv className="w-4 h-4 text-[#E50914]" />
             <span>Séries ({filteredSeries.length})</span>
           </h3>
-          <div className="flex items-stretch gap-4 overflow-x-auto no-scrollbar py-2">
+          <div className="flex items-stretch gap-3 overflow-x-auto no-scrollbar py-2">
             {filteredSeries.map((s) => (
               <MediaCard
                 key={s.id}
                 id={s.id}
                 title={s.name}
-                imageUrl={s.cover}
+                imageUrl={s.cover || s.stream_icon}
                 rating={s.rating}
-                year={s.releaseDate?.split('-')[0]}
-                subtitle={s.genre}
                 type="series"
                 onClick={() => onSelectSeries(s)}
               />
@@ -208,8 +267,8 @@ export const TvSearchView: React.FC<TvSearchViewProps> = ({
       )}
 
       {normalized && totalResults === 0 && (
-        <div className="p-12 text-center text-slate-400 bg-white/5 rounded-2xl border border-white/5">
-          Nenhum conteúdo encontrado para &quot;{query}&quot;. Tente outro termo de busca.
+        <div className="py-12 text-center text-slate-400">
+          <p className="text-sm">Nenhum resultado encontrado para &quot;{query}&quot;.</p>
         </div>
       )}
     </div>

@@ -22,7 +22,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="NOCTRA PLAY"
+        android:label="GLOBAL PIPOCA"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:banner="@drawable/noctra_tv_banner"
@@ -42,16 +42,12 @@
             android:roundIcon="@mipmap/ic_launcher"
             android:banner="@drawable/noctra_tv_banner">
 
-            <!-- Standard Launcher Intent -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-            <!-- Android TV Leanback Launcher Intent (CRITICAL for TV Box / Google TV launcher tile) -->
+            <!-- Unified Single-Click Launcher Intent for Android TV / Leanback / FireTV -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
