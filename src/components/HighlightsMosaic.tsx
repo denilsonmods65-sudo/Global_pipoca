@@ -56,12 +56,6 @@ export const HighlightsMosaic: React.FC<HighlightsMosaicProps> = ({
             data-tv-focusable="true"
             onClick={() => onSelectMovie(featuredMovie)}
             onFocus={() => onFocusItem && onFocusItem(featuredMovie)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onSelectMovie(featuredMovie);
-              }
-            }}
             className="tv-focusable tv-focus-target group relative md:col-span-7 h-56 sm:h-64 rounded-2xl overflow-hidden cursor-pointer bg-[#12141A] border border-white/10 transition-all duration-200 outline-none hover:border-amber-400/50 focus:border-[#FFD700] focus:scale-[1.01] focus:shadow-xl focus:shadow-amber-500/20"
           >
             {/* Backdrop / Poster Art */}
@@ -137,12 +131,6 @@ export const HighlightsMosaic: React.FC<HighlightsMosaicProps> = ({
               tabIndex={0}
               data-tv-focusable="true"
               onClick={() => onSelectChannel(featuredChannel)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelectChannel(featuredChannel);
-                }
-              }}
               className="tv-focusable tv-focus-target group relative h-26 sm:h-[120px] rounded-2xl overflow-hidden cursor-pointer bg-[#12141A] border border-white/10 p-3.5 flex items-center justify-between gap-3.5 transition-all duration-200 outline-none hover:border-amber-400/50 focus:border-[#FFD700] focus:scale-[1.01] focus:shadow-xl focus:shadow-amber-500/20"
             >
               <div className="flex items-center gap-3.5 min-w-0">
@@ -195,12 +183,6 @@ export const HighlightsMosaic: React.FC<HighlightsMosaicProps> = ({
               data-tv-focusable="true"
               onClick={() => onSelectSeries(featuredSeries)}
               onFocus={() => onFocusItem && onFocusItem(featuredSeries)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelectSeries(featuredSeries);
-                }
-              }}
               className="tv-focusable tv-focus-target group relative h-26 sm:h-[120px] rounded-2xl overflow-hidden cursor-pointer bg-[#12141A] border border-white/10 transition-all duration-200 outline-none hover:border-amber-400/50 focus:border-[#FFD700] focus:scale-[1.01] focus:shadow-xl focus:shadow-amber-500/20"
             >
               {featuredSeries.cover || featuredSeries.stream_icon ? (
@@ -246,12 +228,6 @@ export const HighlightsMosaic: React.FC<HighlightsMosaicProps> = ({
               data-tv-focusable="true"
               onClick={() => onSelectMovie(secondaryMovie)}
               onFocus={() => onFocusItem && onFocusItem(secondaryMovie)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelectMovie(secondaryMovie);
-                }
-              }}
               className="tv-focusable tv-focus-target group relative h-26 sm:h-[120px] rounded-2xl overflow-hidden cursor-pointer bg-[#12141A] border border-white/10 transition-all duration-200 outline-none hover:border-amber-400/50 focus:border-[#FFD700] focus:scale-[1.01] focus:shadow-xl focus:shadow-amber-500/20"
             >
               {secondaryMovie.backdrop_path || secondaryMovie.stream_icon ? (

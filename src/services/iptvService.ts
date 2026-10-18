@@ -271,7 +271,7 @@ export class IptvService {
 
   // Build real stream URL for playback using authenticated provider credentials
   public getStreamUrl(type: 'live' | 'movie' | 'series', streamId: string | number, extension = 'mp4'): string {
-    if (!this.credentials) return '';
+    if (!this.credentials || streamId === undefined || streamId === null || streamId === '') return '';
 
     if (this.credentials.type === 'm3u') {
       return String(streamId);
@@ -279,17 +279,16 @@ export class IptvService {
 
     const { serverUrl, username, password } = this.credentials;
     const cleanUrl = this.normalizeServerUrl(serverUrl);
+    const cleanExt = String(extension || 'mp4').trim().replace(/^\./, '');
 
     if (type === 'live') {
       return `${cleanUrl}/live/${username}/${password}/${streamId}.m3u8`;
     }
     if (type === 'movie') {
-      const ext = extension || 'mp4';
-      return `${cleanUrl}/movie/${username}/${password}/${streamId}.${ext}`;
+      return `${cleanUrl}/movie/${username}/${password}/${streamId}.${cleanExt}`;
     }
     if (type === 'series') {
-      const ext = extension || 'mp4';
-      return `${cleanUrl}/series/${username}/${password}/${streamId}.${ext}`;
+      return `${cleanUrl}/series/${username}/${password}/${streamId}.${cleanExt}`;
     }
     return '';
   }

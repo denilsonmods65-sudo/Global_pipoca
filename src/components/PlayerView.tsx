@@ -71,6 +71,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   const [showControls, setShowControls] = useState<boolean>(true);
   const [showChannelDrawer, setShowChannelDrawer] = useState<boolean>(false);
   const [errorState, setErrorState] = useState<string | null>(null);
+  const [isBuffering, setIsBuffering] = useState<boolean>(true);
+  const watchdogTimeoutRef = useRef<any>(null);
 
   // Real Audio, Subtitle & Quality Track States
   const [audioTracks, setAudioTracks] = useState<{ id: number; name: string }[]>([]);
@@ -114,10 +116,20 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     if (!video) return;
 
     setErrorState(null);
+    setIsBuffering(true);
     setAudioTracks([]);
     setSubtitleTracks([]);
     setQualityLevels([]);
     setSelectedQuality(-1);
+
+    if (watchdogTimeoutRef.current) {
+      clearTimeout(watchdogTimeoutRef.current);
+    }
+    // Watchdog timer: If stream doesn't start in 15 seconds, present clean error and allow return
+    watchdogTimeoutRef.current = setTimeout(() => {
+      setIsBuffering(false);
+      setErrorState('Tempo limite de conexão esgotado. O servidor IPTV pode estar temporariamente offline ou a transmissão foi finalizada.');
+    }, 15000);
 
     // Clean previous HLS instance
     if (hlsRef.current) {
@@ -143,6 +155,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setIsBuffering(false);
+        if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
+
         // Collect real audio tracks
         if (hls.audioTracks && hls.audioTracks.length > 0) {
           setAudioTracks(
@@ -193,6 +208,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
+          setIsBuffering(false);
+          if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
+
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               if (hls.url === proxiedUrl && targetUrl !== proxiedUrl) {
@@ -206,7 +224,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               break;
             default:
               hls.destroy();
-              setErrorState('Falha na reprodução do fluxo. Servidor indisponível ou codec não suportado.');
+              setErrorState('Falha na reprodução do fluxo. Servidor IPTV indisponível ou codec não suportado.');
               break;
           }
         }
@@ -219,6 +237,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
       setAudioTracks([{ id: 0, name: 'Áudio Original (Nativo)' }]);
       setSelectedAudioTrack(0);
     } else {
+      setIsBuffering(false);
+      if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
       setErrorState('O formato do stream não é compatível com este navegador/dispositivo.');
     }
   }, [isLive, mediaMetadata, iptvService]);
@@ -230,6 +250,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     initPlayer(streamUrl);
 
     return () => {
+      if (watchdogTimeoutRef.current) {
+        clearTimeout(watchdogTimeoutRef.current);
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -329,7 +352,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           setShowControls(true);
           return;
         }
-        // If controls already visible, toggle play/pause
+        // If an interactive OSD button is focused, allow it to execute its own click
+        if (
+          document.activeElement &&
+          document.activeElement.tagName === 'BUTTON' &&
+          document.activeElement !== containerRef.current
+        ) {
+          return;
+        }
+        // Otherwise toggle playback
         if (!showChannelDrawer) {
           e.preventDefault();
           if (video.paused) {
@@ -343,17 +374,25 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         return;
       }
 
-      // Live Channel Switching via Remote ArrowUp / ArrowDown (only when no modal is open)
+      // Live Channel Switching via Remote ArrowUp / ArrowDown (when not navigating OSD buttons)
       if (isLive && !showChannelDrawer) {
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          changeLiveChannel('next');
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          changeLiveChannel('prev');
-          return;
+        const isNavigatingOsd =
+          showControls &&
+          document.activeElement &&
+          document.activeElement.tagName === 'BUTTON' &&
+          document.activeElement !== containerRef.current;
+
+        if (!isNavigatingOsd) {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            changeLiveChannel('next');
+            return;
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            changeLiveChannel('prev');
+            return;
+          }
         }
       }
 
@@ -431,6 +470,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
     <div
       ref={containerRef}
       data-tv-modal="true"
+      data-tv-player="true"
       onMouseMove={kickControlsTimer}
       onClick={kickControlsTimer}
       className="fixed inset-0 z-50 bg-[#07080B] flex flex-col select-none overflow-y-auto no-scrollbar"
@@ -448,12 +488,38 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
           onDurationChange={() => {
             if (videoRef.current) setDuration(videoRef.current.duration);
           }}
-          onPlay={() => setIsPlaying(true)}
+          onPlay={() => {
+            setIsPlaying(true);
+            setIsBuffering(false);
+            if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
+          }}
+          onPlaying={() => {
+            setIsPlaying(true);
+            setIsBuffering(false);
+            if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
+          }}
+          onCanPlay={() => {
+            setIsBuffering(false);
+            if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
+          }}
+          onWaiting={() => setIsBuffering(true)}
           onPause={() => setIsPlaying(false)}
           onError={() => {
-            setErrorState('Erro ao carregar o canal ou filme. Verifique se o servidor IPTV está online.');
+            setIsBuffering(false);
+            if (watchdogTimeoutRef.current) clearTimeout(watchdogTimeoutRef.current);
+            setErrorState('Não foi possível reproduzir este conteúdo. O servidor IPTV pode estar indisponível ou o codec não é suportado.');
           }}
         />
+
+        {/* Buffering Indicator */}
+        {isBuffering && !errorState && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/50 pointer-events-none">
+            <div className="w-12 h-12 rounded-full border-4 border-amber-400/20 border-t-[#FFD700] animate-spin mb-3" />
+            <span className="text-xs font-semibold text-slate-200 tracking-wide drop-shadow">
+              Carregando transmissão...
+            </span>
+          </div>
+        )}
 
         {/* Error Overlay */}
         {errorState && (

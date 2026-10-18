@@ -38,12 +38,6 @@ export const MediaCard: React.FC<MediaCardProps> = ({
       data-tv-focusable="true"
       onClick={onClick}
       onFocus={onFocus}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
       className={`tv-focusable tv-focus-target group relative flex-shrink-0 cursor-pointer flex flex-col transition-all duration-200 select-none outline-none ${
         isLandscape ? 'w-44 sm:w-48' : 'w-24 sm:w-28 md:w-[120px]'
       }`}

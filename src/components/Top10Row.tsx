@@ -43,12 +43,6 @@ export const Top10Row: React.FC<Top10RowProps> = ({ items, onSelectItem }) => {
               key={item.id}
               tabIndex={0}
               onClick={() => onSelectItem(item)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelectItem(item);
-                }
-              }}
               className="tv-focusable tv-focus-target group relative flex-shrink-0 cursor-pointer flex items-end transition-all duration-200 outline-none"
             >
               {/* Giant Rank Number (Reference 1 style with outline) */}

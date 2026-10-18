@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { IptvService, deduplicateList } from './services/iptvService';
 import {
   LiveChannel,
@@ -160,29 +160,46 @@ export default function App() {
     setActiveTab('home');
   }, [iptvService]);
 
+  const lastActiveCardRef = useRef<HTMLElement | null>(null);
+
+  // Restore focus to the exact card that opened modal/player
+  const restorePreviousFocus = useCallback(() => {
+    setTimeout(() => {
+      if (lastActiveCardRef.current && document.body.contains(lastActiveCardRef.current)) {
+        lastActiveCardRef.current.focus();
+        lastActiveCardRef.current.setAttribute('data-focused', 'true');
+      }
+    }, 60);
+  }, []);
+
   // Remote / Back Key Navigation
   const handleTvBack = useCallback(() => {
     if (activePlayer) {
       setActivePlayer(null);
+      setWatchHistory(iptvService.getWatchHistory());
+      restorePreviousFocus();
       return;
     }
     if (selectedItem) {
       setSelectedItem(null);
+      restorePreviousFocus();
       return;
     }
     if (exportModalOpen) {
       setExportModalOpen(false);
+      restorePreviousFocus();
       return;
     }
     if (loginModalOpen) {
       setLoginModalOpen(false);
+      restorePreviousFocus();
       return;
     }
     if (activeTab !== 'home') {
       setActiveTab('home');
       return;
     }
-  }, [activePlayer, selectedItem, exportModalOpen, loginModalOpen, activeTab]);
+  }, [activePlayer, selectedItem, exportModalOpen, loginModalOpen, activeTab, iptvService, restorePreviousFocus]);
 
   useTvSpatialNavigation({
     enabled: true,
@@ -191,18 +208,27 @@ export default function App() {
 
   // Open Details Modal for Movie
   const handleOpenMovie = (movie: MovieItem) => {
+    if (document.activeElement instanceof HTMLElement) {
+      lastActiveCardRef.current = document.activeElement;
+    }
     setSelectedItem(movie);
     setIsSeriesDetails(false);
   };
 
   // Open Details Modal for Series
   const handleOpenSeries = (s: SeriesItem) => {
+    if (document.activeElement instanceof HTMLElement) {
+      lastActiveCardRef.current = document.activeElement;
+    }
     setSelectedItem(s);
     setIsSeriesDetails(true);
   };
 
   // Play Live Channel directly
   const handlePlayChannel = (channel: LiveChannel) => {
+    if (document.activeElement instanceof HTMLElement) {
+      lastActiveCardRef.current = document.activeElement;
+    }
     const url = channel.stream_url || iptvService.getStreamUrl('live', channel.stream_id);
     setActivePlayer({
       url,
@@ -223,6 +249,9 @@ export default function App() {
       episodeTitle: string;
     }
   ) => {
+    if (document.activeElement instanceof HTMLElement) {
+      lastActiveCardRef.current = document.activeElement;
+    }
     setActivePlayer({
       url: streamUrl,
       title,
@@ -517,18 +546,6 @@ export default function App() {
                             handlePlayChannel(channel);
                           }
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            const channel =
-                              channels.find(
-                                (c) =>
-                                  c.name.toLowerCase().includes(match.channelName.toLowerCase()) ||
-                                  match.channelName.toLowerCase().includes(c.name.toLowerCase())
-                              ) || channels[0];
-                            if (channel) handlePlayChannel(channel);
-                          }
-                        }}
                         className="tv-focusable tv-focus-target group relative w-72 sm:w-80 flex-shrink-0 cursor-pointer rounded-2xl p-4 bg-[#14161C] border border-white/10 hover:border-amber-400/50 focus:border-[#FFD700] focus:scale-[1.02] flex flex-col justify-between transition-all outline-none shadow-lg"
                       >
                         {/* Header: Competition & Kickoff Time */}
@@ -763,7 +780,10 @@ export default function App() {
         <MediaDetailsModal
           item={selectedItem}
           isSeries={isSeriesDetails}
-          onClose={() => setSelectedItem(null)}
+          onClose={() => {
+            setSelectedItem(null);
+            restorePreviousFocus();
+          }}
           onPlay={handlePlayMedia}
           onSelectRelated={(rel, isSer) => {
             setSelectedItem(rel);
@@ -801,6 +821,7 @@ export default function App() {
           onClose={() => {
             setActivePlayer(null);
             setWatchHistory(iptvService.getWatchHistory());
+            restorePreviousFocus();
           }}
         />
       )}

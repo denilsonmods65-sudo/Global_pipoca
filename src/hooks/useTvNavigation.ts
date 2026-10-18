@@ -27,11 +27,12 @@ export function useTvSpatialNavigation(options?: {
   onEnter?: (element: HTMLElement) => void;
 }) {
   const lastFocusedRef = useRef<HTMLElement | null>(null);
+  const lastEnterTimeRef = useRef<number>(0);
 
   // Find candidate focusable elements within current context
   const getFocusableElements = useCallback((): HTMLElement[] => {
-    // If a modal or player is open, restrict focus to inside it
-    const modal = document.querySelector<HTMLElement>('[data-tv-modal="true"]');
+    // If a modal or details dialog is open (excluding PlayerView which has its own controller)
+    const modal = document.querySelector<HTMLElement>('[data-tv-modal="true"]:not([data-tv-player="true"])');
     const container = modal || document;
 
     const selector = [
@@ -45,7 +46,7 @@ export function useTvSpatialNavigation(options?: {
 
     const nodes = Array.from(container.querySelectorAll<HTMLElement>(selector));
     return nodes.filter((el) => {
-      // Must be visible
+      // Must be visible and interactive
       const rect = el.getBoundingClientRect();
       const style = window.getComputedStyle(el);
       return (
@@ -58,7 +59,7 @@ export function useTvSpatialNavigation(options?: {
     });
   }, []);
 
-  // Spatial navigation heuristic (closest element in direction, strictly row-by-row)
+  // Spatial navigation heuristic respecting layout zones and row bounds
   const findNextFocusElement = useCallback(
     (current: HTMLElement, direction: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'): HTMLElement | null => {
       const candidates = getFocusableElements().filter((el) => el !== current);
@@ -68,33 +69,118 @@ export function useTvSpatialNavigation(options?: {
       const currentCenterX = currentRect.left + currentRect.width / 2;
       const currentCenterY = currentRect.top + currentRect.height / 2;
 
-      if (direction === 'DOWN') {
-        // Find all candidates below current element
-        const downCandidates = candidates.filter((target) => {
+      const isInsideSidebar = Boolean(current.closest('[data-tv-section="sidebar"]'));
+
+      // ZONE 1: CURRENT FOCUS IS IN SIDEBAR
+      if (isInsideSidebar) {
+        const sidebarCandidates = candidates.filter((el) =>
+          Boolean(el.closest('[data-tv-section="sidebar"]'))
+        );
+
+        if (direction === 'DOWN') {
+          const below = sidebarCandidates
+            .filter((el) => el.getBoundingClientRect().top >= currentRect.bottom - 4)
+            .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+          return below[0] || null;
+        }
+
+        if (direction === 'UP') {
+          const above = sidebarCandidates
+            .filter((el) => el.getBoundingClientRect().bottom <= currentRect.top + 4)
+            .sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
+          return above[0] || null;
+        }
+
+        if (direction === 'RIGHT') {
+          // Navigate from sidebar to main content
+          const heroPlay = document.getElementById('hero-play-btn');
+          if (heroPlay && heroPlay.offsetParent !== null) return heroPlay;
+
+          const mainCandidates = candidates.filter(
+            (el) => !el.closest('[data-tv-section="sidebar"]')
+          );
+          return mainCandidates[0] || null;
+        }
+
+        if (direction === 'LEFT') {
+          // Stay in sidebar
+          return null;
+        }
+      }
+
+      // ZONE 2: CURRENT FOCUS IS IN MAIN CONTENT AREA
+      const mainCandidates = candidates.filter(
+        (el) => !el.closest('[data-tv-section="sidebar"]')
+      );
+
+      if (direction === 'RIGHT') {
+        // Find next card to the right in the same carousel row (vertical tolerance 55px)
+        const inSameRowRight = mainCandidates.filter((target) => {
           const targetRect = target.getBoundingClientRect();
           const targetCenterY = targetRect.top + targetRect.height / 2;
-          return targetRect.top >= currentRect.bottom - 10 || targetCenterY > currentCenterY + 14;
+          const sameRow = Math.abs(targetCenterY - currentCenterY) < 55;
+          const isRight = targetRect.left >= currentRect.right - 10;
+          return sameRow && isRight;
+        });
+
+        if (inSameRowRight.length > 0) {
+          inSameRowRight.sort(
+            (a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left
+          );
+          return inSameRowRight[0];
+        }
+
+        // Rule 3: End of row - do NOT jump to distant or unexpected elements
+        return null;
+      }
+
+      if (direction === 'LEFT') {
+        // Find previous card to the left in the same carousel row
+        const inSameRowLeft = mainCandidates.filter((target) => {
+          const targetRect = target.getBoundingClientRect();
+          const targetCenterY = targetRect.top + targetRect.height / 2;
+          const sameRow = Math.abs(targetCenterY - currentCenterY) < 55;
+          const isLeft = targetRect.right <= currentRect.left + 10;
+          return sameRow && isLeft;
+        });
+
+        if (inSameRowLeft.length > 0) {
+          inSameRowLeft.sort(
+            (a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right
+          );
+          return inSameRowLeft[0];
+        }
+
+        // If at the leftmost card of the row or banner, jump cleanly to the active sidebar item
+        const activeSidebarItem =
+          document.querySelector<HTMLElement>('[data-tv-section="sidebar"] [data-tv-active="true"]') ||
+          document.querySelector<HTMLElement>('[data-tv-section="sidebar"] button.tv-focusable');
+        return activeSidebarItem || null;
+      }
+
+      if (direction === 'DOWN') {
+        // Find candidates below current in the main content area (never jump to sidebar)
+        const downCandidates = mainCandidates.filter((target) => {
+          const targetRect = target.getBoundingClientRect();
+          const targetCenterY = targetRect.top + targetRect.height / 2;
+          return targetRect.top >= currentRect.bottom - 12 || targetCenterY > currentCenterY + 18;
         });
 
         if (downCandidates.length === 0) return null;
 
-        // Calculate vertical gap for each candidate
         const withDistances = downCandidates.map((target) => {
           const targetRect = target.getBoundingClientRect();
           const vDist = Math.max(0, targetRect.top - currentRect.bottom);
           return { target, targetRect, vDist };
         });
 
-        // Find the closest vertical level (the immediately next row)
         const minVDist = Math.min(...withDistances.map((c) => c.vDist));
+        // Group into the immediate next row (vertical tolerance 45px)
+        const nextRowCandidates = withDistances.filter((c) => c.vDist <= minVDist + 45);
 
-        // Group into the immediate next row (allow 65px tolerance for minor row variance)
-        const nextRowCandidates = withDistances.filter((c) => c.vDist <= minVDist + 65);
-
-        // Within this closest row, pick the one with closest horizontal alignment
+        // Pick element with closest horizontal alignment
         let bestTarget: HTMLElement | null = null;
         let minHDist = Infinity;
-
         for (const item of nextRowCandidates) {
           const targetCenterX = item.targetRect.left + item.targetRect.width / 2;
           const hDist = Math.abs(targetCenterX - currentCenterX);
@@ -103,36 +189,32 @@ export function useTvSpatialNavigation(options?: {
             bestTarget = item.target;
           }
         }
-
         return bestTarget;
       }
 
       if (direction === 'UP') {
-        // Find all candidates above current element
-        const upCandidates = candidates.filter((target) => {
+        // Find candidates above current in the main content area (never jump to sidebar)
+        const upCandidates = mainCandidates.filter((target) => {
           const targetRect = target.getBoundingClientRect();
           const targetCenterY = targetRect.top + targetRect.height / 2;
-          return targetRect.bottom <= currentRect.top + 10 || targetCenterY < currentCenterY - 14;
+          return targetRect.bottom <= currentRect.top + 12 || targetCenterY < currentCenterY - 18;
         });
 
         if (upCandidates.length === 0) return null;
 
-        // Calculate vertical gap for each candidate
         const withDistances = upCandidates.map((target) => {
           const targetRect = target.getBoundingClientRect();
           const vDist = Math.max(0, currentRect.top - targetRect.bottom);
           return { target, targetRect, vDist };
         });
 
-        // Find the closest vertical level above
         const minVDist = Math.min(...withDistances.map((c) => c.vDist));
-
         // Group into the immediate row above
-        const prevRowCandidates = withDistances.filter((c) => c.vDist <= minVDist + 65);
+        const prevRowCandidates = withDistances.filter((c) => c.vDist <= minVDist + 45);
 
+        // Pick element with closest horizontal alignment
         let bestTarget: HTMLElement | null = null;
         let minHDist = Infinity;
-
         for (const item of prevRowCandidates) {
           const targetCenterX = item.targetRect.left + item.targetRect.width / 2;
           const hDist = Math.abs(targetCenterX - currentCenterX);
@@ -141,89 +223,7 @@ export function useTvSpatialNavigation(options?: {
             bestTarget = item.target;
           }
         }
-
         return bestTarget;
-      }
-
-      if (direction === 'RIGHT') {
-        // Candidates strictly to the right in the same visual row/band
-        const rightCandidates = candidates.filter((target) => {
-          const targetRect = target.getBoundingClientRect();
-          const targetCenterY = targetRect.top + targetRect.height / 2;
-          const targetCenterX = targetRect.left + targetRect.width / 2;
-          const inSameRow =
-            Math.abs(targetCenterY - currentCenterY) < 95 ||
-            !(targetRect.bottom < currentRect.top || targetRect.top > currentRect.bottom);
-          const isRight = targetRect.left >= currentRect.right - 8 || targetCenterX > currentCenterX + 8;
-          return inSameRow && isRight;
-        });
-
-        if (rightCandidates.length > 0) {
-          let bestTarget: HTMLElement | null = null;
-          let minDistance = Infinity;
-          for (const target of rightCandidates) {
-            const targetRect = target.getBoundingClientRect();
-            const dist = targetRect.left - currentRect.right;
-            if (dist < minDistance) {
-              minDistance = dist;
-              bestTarget = target;
-            }
-          }
-          return bestTarget;
-        }
-
-        // If inside sidebar and pressing RIGHT, jump to hero play button or first main element
-        const isInsideSidebar = current.closest('[data-tv-section="sidebar"]');
-        if (isInsideSidebar) {
-          const heroPlay = document.getElementById('hero-play-btn');
-          if (heroPlay && heroPlay.offsetParent !== null) return heroPlay;
-
-          const mainFocusable = candidates.find(
-            (el) => !el.closest('[data-tv-section="sidebar"]') && el.offsetParent !== null
-          );
-          if (mainFocusable) return mainFocusable;
-        }
-
-        return null;
-      }
-
-      if (direction === 'LEFT') {
-        // Candidates strictly to the left in the same visual row/band
-        const leftCandidates = candidates.filter((target) => {
-          const targetRect = target.getBoundingClientRect();
-          const targetCenterY = targetRect.top + targetRect.height / 2;
-          const targetCenterX = targetRect.left + targetRect.width / 2;
-          const inSameRow =
-            Math.abs(targetCenterY - currentCenterY) < 95 ||
-            !(targetRect.bottom < currentRect.top || targetRect.top > currentRect.bottom);
-          const isLeft = targetRect.right <= currentRect.left + 8 || targetCenterX < currentCenterX - 8;
-          return inSameRow && isLeft;
-        });
-
-        if (leftCandidates.length > 0) {
-          let bestTarget: HTMLElement | null = null;
-          let minDistance = Infinity;
-          for (const target of leftCandidates) {
-            const targetRect = target.getBoundingClientRect();
-            const dist = currentRect.left - targetRect.right;
-            if (dist < minDistance) {
-              minDistance = dist;
-              bestTarget = target;
-            }
-          }
-          return bestTarget;
-        }
-
-        // If in main content and reached the leftmost element, jump to active sidebar item
-        const isInsideSidebar = current.closest('[data-tv-section="sidebar"]');
-        if (!isInsideSidebar) {
-          const activeSidebar =
-            document.querySelector<HTMLElement>('[data-tv-section="sidebar"] [data-tv-active="true"]') ||
-            document.querySelector<HTMLElement>('[data-tv-section="sidebar"] .tv-focusable');
-          if (activeSidebar) return activeSidebar;
-        }
-
-        return null;
       }
 
       return null;
@@ -250,6 +250,11 @@ export function useTvSpatialNavigation(options?: {
     if (options?.enabled === false) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // If Video Player is active, let PlayerView handle all remote keys exclusively
+      if (document.querySelector('[data-tv-player="true"]')) {
+        return;
+      }
+
       const isInput =
         document.activeElement instanceof HTMLInputElement ||
         document.activeElement instanceof HTMLTextAreaElement;
@@ -266,7 +271,6 @@ export function useTvSpatialNavigation(options?: {
           e.keyCode === 67;
 
         if (isDeleteKey) {
-          // If remote sends Android TV KEYCODE_DEL (67) without browser default behavior
           if (e.keyCode === 67) {
             const input = document.activeElement as HTMLInputElement;
             const start = input.selectionStart ?? input.value.length;
@@ -280,11 +284,10 @@ export function useTvSpatialNavigation(options?: {
               input.setSelectionRange(delStart, delStart);
             }
           }
-          // Do not treat as navigation BACK key
           return;
         }
 
-        // Only true TV BACK (Escape, Android Back key 4) blurs or navigates back from an input
+        // TV BACK from input
         if (e.key === 'Escape' || e.keyCode === 27 || (e.keyCode === 4 && e.key !== 'Backspace')) {
           e.preventDefault();
           (document.activeElement as HTMLElement)?.blur();
@@ -301,19 +304,33 @@ export function useTvSpatialNavigation(options?: {
         return;
       }
 
-      // Enter key
+      // Enter / OK key (single execution with debounce & repeat filtering)
       if (isKeyMatch(e, TV_KEYS.ENTER)) {
+        if (e.repeat) {
+          e.preventDefault();
+          return;
+        }
+
+        const now = Date.now();
+        if (now - lastEnterTimeRef.current < 250) {
+          e.preventDefault();
+          return;
+        }
+        lastEnterTimeRef.current = now;
+
         if (document.activeElement instanceof HTMLElement) {
           if (!isInput) {
             e.preventDefault();
-            document.activeElement.click();
-            options?.onEnter?.(document.activeElement);
+            e.stopPropagation();
+            const el = document.activeElement;
+            el.click();
+            options?.onEnter?.(el);
           }
         }
         return;
       }
 
-      // If typing in input, let normal left/right cursor work inside input
+      // Cursor movement inside inputs
       if (isInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         return;
       }
@@ -344,7 +361,7 @@ export function useTvSpatialNavigation(options?: {
         const explicitTarget =
           document.getElementById(explicitAttr) ||
           document.querySelector<HTMLElement>(explicitAttr);
-        if (explicitTarget) {
+        if (explicitTarget && explicitTarget.offsetParent !== null) {
           focusElement(explicitTarget);
           return;
         }
@@ -368,6 +385,7 @@ export function useTvSpatialNavigation(options?: {
     restoreLastFocus: () => {
       if (lastFocusedRef.current && document.body.contains(lastFocusedRef.current)) {
         lastFocusedRef.current.focus();
+        lastFocusedRef.current.setAttribute('data-focused', 'true');
       }
     },
   };
